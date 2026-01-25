@@ -137,6 +137,10 @@ def cmd_profile(args):
     client = get_client()
     handle = args.handle.lstrip('@') if args.handle else client.me.handle
     
+    # Auto-append .bsky.social if no domain specified
+    if handle and '.' not in handle:
+        handle = f"{handle}.bsky.social"
+    
     profile = client.get_profile(handle)
     print(f"@{profile.handle}")
     print(f"  Name: {profile.display_name or '(none)'}")
