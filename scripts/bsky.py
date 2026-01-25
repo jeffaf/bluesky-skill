@@ -4,12 +4,13 @@
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
 
 try:
-    from atproto import Client
+    from atproto import Client, client_utils
 except ImportError:
     print("Error: atproto not installed. Run: pip install atproto", file=sys.stderr)
     sys.exit(1)
@@ -86,7 +87,31 @@ def cmd_timeline(args):
 
 def cmd_post(args):
     client = get_client()
-    response = client.send_post(text=args.text)
+    text = args.text
+    
+    # Auto-detect URLs and create proper facets using TextBuilder
+    url_pattern = r'(https?://[^\s]+)'
+    urls = re.findall(url_pattern, text)
+    
+    if urls:
+        # Use TextBuilder for proper link facets
+        builder = client_utils.TextBuilder()
+        last_end = 0
+        for match in re.finditer(url_pattern, text):
+            # Add text before the URL
+            if match.start() > last_end:
+                builder.text(text[last_end:match.start()])
+            # Add the URL as a link
+            url = match.group(1)
+            builder.link(url, url)
+            last_end = match.end()
+        # Add any remaining text
+        if last_end < len(text):
+            builder.text(text[last_end:])
+        response = client.send_post(builder)
+    else:
+        response = client.send_post(text=text)
+    
     uri = response.uri
     post_id = uri.split('/')[-1]
     print(f"Posted: https://bsky.app/profile/{client.me.handle}/post/{post_id}")
