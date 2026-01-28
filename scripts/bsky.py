@@ -28,25 +28,50 @@ def save_config(config):
 
 def get_client():
     config = load_config()
-    if not config.get("handle") or not config.get("app_password"):
-        print("Not logged in. Run: bsky login --handle your.handle --password your-app-password", file=sys.stderr)
-        sys.exit(1)
     
-    client = Client()
-    client.login(config["handle"], config["app_password"])
-    return client
+    # Prefer session string (no password stored)
+    if config.get("session"):
+        client = Client()
+        try:
+            client.login(session_string=config["session"])
+            # Update session in case it was refreshed
+            new_session = client.export_session_string()
+            if new_session != config["session"]:
+                config["session"] = new_session
+                save_config(config)
+            return client
+        except Exception:
+            # Session expired/invalid, need to re-login
+            print("Session expired. Run: bsky login --handle your.handle --password your-app-password", file=sys.stderr)
+            sys.exit(1)
+    
+    # Legacy: support old configs with app_password (migrate on use)
+    if config.get("handle") and config.get("app_password"):
+        client = Client()
+        client.login(config["handle"], config["app_password"])
+        # Migrate to session-based auth
+        config["session"] = client.export_session_string()
+        del config["app_password"]
+        save_config(config)
+        print("(Migrated to session-based auth, app password removed)", file=sys.stderr)
+        return client
+    
+    print("Not logged in. Run: bsky login --handle your.handle --password your-app-password", file=sys.stderr)
+    sys.exit(1)
 
 def cmd_login(args):
-    config = {
-        "handle": args.handle,
-        "app_password": args.password
-    }
     try:
         client = Client()
         client.login(args.handle, args.password)
-        config["did"] = client.me.did
+        # Store session string only - password never saved to disk
+        config = {
+            "handle": client.me.handle,
+            "did": client.me.did,
+            "session": client.export_session_string()
+        }
         save_config(config)
-        print(f"Logged in as {args.handle} ({client.me.did})")
+        print(f"Logged in as {client.me.handle} ({client.me.did})")
+        print("(Password not stored - using session token)")
     except Exception as e:
         print(f"Login failed: {e}", file=sys.stderr)
         sys.exit(1)
