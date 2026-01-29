@@ -1,6 +1,6 @@
 # 🦋 Bluesky Skill
 
-A Clawdbot skill for interacting with Bluesky (AT Protocol) from the command line.
+A Moltbot skill for interacting with Bluesky (AT Protocol) from the command line.
 
 **Version:** 1.1.1
 
@@ -84,9 +84,9 @@ bsky --version
 
 ## Installation
 
-Via ClawdHub:
+Via MoltHub:
 ```bash
-clawdhub install bluesky
+molthub install bluesky
 ```
 
 Or clone directly:
@@ -100,4 +100,4 @@ MIT
 
 ---
 
-*Built for [Clawdbot](https://github.com/clawdbot/clawdbot)*
+*Built for [Moltbot](https://github.com/moltbot/moltbot)*
