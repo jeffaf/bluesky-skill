@@ -127,6 +127,15 @@ def cmd_timeline(args):
 def cmd_post(args):
     text = args.text
 
+    # Validate text
+    if not text or not text.strip():
+        print("Error: Post text cannot be empty", file=sys.stderr)
+        sys.exit(1)
+
+    if len(text) > 300:
+        print(f"Error: Post is {len(text)} chars (max 300)", file=sys.stderr)
+        sys.exit(1)
+
     # Dry run - show what would be posted without actually posting
     if args.dry_run:
         print("=== DRY RUN (not posting) ===")
@@ -140,10 +149,6 @@ def cmd_post(args):
             print(f"Links detected: {len(urls)}")
             for url in urls:
                 print(f"  • {url}")
-
-        # Warn if over limit
-        if len(text) > 300:
-            print(f"⚠️  Warning: {len(text)} chars exceeds 300 char limit!")
 
         print("=============================")
         return
