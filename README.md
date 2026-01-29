@@ -26,8 +26,6 @@ A Clawdbot skill for interacting with Bluesky (AT Protocol) from the command lin
 bsky login --handle yourhandle.bsky.social --password xxxx-xxxx-xxxx-xxxx
 ```
 
-**🔒 Security:** Your password is NOT stored. The CLI creates a session token on login which auto-refreshes. Your app password only exists in memory during login.
-
 ### 3. Verify
 
 ```bash
