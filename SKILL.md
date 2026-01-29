@@ -1,6 +1,6 @@
 ---
 name: bluesky
-version: 1.1.1
+version: 1.2.0
 description: Read, post, and interact with Bluesky (AT Protocol) via CLI. Use when user asks to check Bluesky, post to Bluesky, view their Bluesky timeline, search Bluesky, or check Bluesky notifications. Supports timeline, posting, profile lookup, search, and notifications.
 homepage: https://bsky.app
 metadata:
