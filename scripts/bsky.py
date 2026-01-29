@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 import re
 import sys
 from datetime import datetime
@@ -28,6 +29,7 @@ def load_config():
 def save_config(config):
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(json.dumps(config, indent=2))
+    os.chmod(CONFIG_PATH, 0o600)
 
 
 def get_client():
@@ -86,6 +88,18 @@ def cmd_login(args):
     except Exception as e:
         print(f"Login failed: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def cmd_logout(args):
+    config = load_config()
+    if config.get("session"):
+        config.pop("session", None)
+        config.pop("handle", None)
+        config.pop("did", None)
+        save_config(config)
+        print("Logged out successfully")
+    else:
+        print("Not logged in")
 
 
 def cmd_whoami(args):
@@ -159,18 +173,47 @@ def cmd_post(args):
     url_pattern = r"(https?://[^\s]+)"
     urls = re.findall(url_pattern, text)
 
-    if urls:
-        # Use TextBuilder for proper link facets
+    # Also detect @mentions
+    mention_pattern = r"@([a-zA-Z0-9._-]+)"
+    mentions = re.findall(mention_pattern, text)
+
+    if urls or mentions:
+        # Use TextBuilder for proper facets (links and mentions)
         builder = client_utils.TextBuilder()
+
+        # Combined pattern to find both URLs and mentions in order
+        combined_pattern = r"(https?://[^\s]+)|(@[a-zA-Z0-9._-]+)"
         last_end = 0
-        for match in re.finditer(url_pattern, text):
-            # Add text before the URL
+
+        # Resolve mention handles to DIDs
+        mention_dids = {}
+        for handle in mentions:
+            full_handle = handle if "." in handle else f"{handle}.bsky.social"
+            try:
+                profile = client.get_profile(full_handle)
+                mention_dids[handle] = profile.did
+            except Exception:
+                # If we can't resolve, skip making it a facet
+                pass
+
+        for match in re.finditer(combined_pattern, text):
+            # Add text before the match
             if match.start() > last_end:
                 builder.text(text[last_end : match.start()])
-            # Add the URL as a link
-            url = match.group(1)
-            builder.link(url, url)
+
+            if match.group(1):  # URL
+                url = match.group(1)
+                builder.link(url, url)
+            elif match.group(2):  # Mention
+                mention_text = match.group(2)
+                handle = mention_text[1:]  # Remove @
+                if handle in mention_dids:
+                    builder.mention(mention_text, mention_dids[handle])
+                else:
+                    builder.text(mention_text)  # Can't resolve, just text
+
             last_end = match.end()
+
         # Add any remaining text
         if last_end < len(text):
             builder.text(text[last_end:])
@@ -288,6 +331,9 @@ def main():
         "--password", required=True, help="App password (not your main password)"
     )
 
+    # logout
+    subparsers.add_parser("logout", help="Log out and clear session")
+
     # whoami
     subparsers.add_parser("whoami", help="Show current user")
 
@@ -335,6 +381,7 @@ def main():
 
     commands = {
         "login": cmd_login,
+        "logout": cmd_logout,
         "whoami": cmd_whoami,
         "timeline": cmd_timeline,
         "tl": cmd_timeline,
