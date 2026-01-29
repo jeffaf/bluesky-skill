@@ -1,0 +1,14 @@
+# Dev/test files
+ROADMAP.md
+TESTING.md
+scripts/test-auth.sh
+
+# Python
+scripts/venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Credentials/config
+.env
+.env.*

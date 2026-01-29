@@ -9,6 +9,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+VERSION = "1.1.1"
+
 try:
     from atproto import Client, client_utils
 except ImportError:
@@ -111,8 +113,30 @@ def cmd_timeline(args):
         print()
 
 def cmd_post(args):
-    client = get_client()
     text = args.text
+    
+    # Dry run - show what would be posted without actually posting
+    if args.dry_run:
+        print("=== DRY RUN (not posting) ===")
+        print(f"Text ({len(text)} chars):")
+        print(f"  {text}")
+        
+        # Check for URLs
+        url_pattern = r'(https?://[^\s]+)'
+        urls = re.findall(url_pattern, text)
+        if urls:
+            print(f"Links detected: {len(urls)}")
+            for url in urls:
+                print(f"  • {url}")
+        
+        # Warn if over limit
+        if len(text) > 300:
+            print(f"⚠️  Warning: {len(text)} chars exceeds 300 char limit!")
+        
+        print("=============================")
+        return
+    
+    client = get_client()
     
     # Auto-detect URLs and create proper facets using TextBuilder
     url_pattern = r'(https?://[^\s]+)'
@@ -228,6 +252,7 @@ def cmd_notifications(args):
 
 def main():
     parser = argparse.ArgumentParser(description="Bluesky CLI")
+    parser.add_argument("-v", "--version", action="version", version=f"bsky {VERSION}")
     subparsers = parser.add_subparsers(dest="command")
     
     # login
@@ -245,6 +270,7 @@ def main():
     # post
     post_p = subparsers.add_parser("post", aliases=["p"], help="Create a post")
     post_p.add_argument("text", help="Post text")
+    post_p.add_argument("--dry-run", action="store_true", help="Show what would be posted without posting")
     
     # delete
     del_p = subparsers.add_parser("delete", aliases=["del", "rm"], help="Delete a post")

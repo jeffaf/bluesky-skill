@@ -2,13 +2,16 @@
 
 A Clawdbot skill for interacting with Bluesky (AT Protocol) from the command line.
 
+**Version:** 1.1.1
+
 ## Features
 
 - **Timeline** - View your home feed
-- **Post** - Create new posts  
+- **Post** - Create new posts (with `--dry-run` preview)
 - **Search** - Search posts across Bluesky
 - **Notifications** - Check likes, reposts, follows, mentions
 - **Profile** - Look up user profiles
+- **Delete** - Remove your posts
 
 ## Setup
 
@@ -23,7 +26,7 @@ A Clawdbot skill for interacting with Bluesky (AT Protocol) from the command lin
 bsky login --handle yourhandle.bsky.social --password xxxx-xxxx-xxxx-xxxx
 ```
 
-Credentials are stored in `~/.config/bsky/config.json`.
+**🔒 Security:** Your password is NOT stored. The CLI creates a session token on login which auto-refreshes. Your app password only exists in memory during login.
 
 ### 3. Verify
 
@@ -34,13 +37,19 @@ bsky whoami
 ## Usage
 
 ```bash
+# Authentication
+bsky login --handle user.bsky.social --password xxxx-xxxx-xxxx-xxxx
+bsky logout
+bsky whoami
+
 # Timeline
 bsky timeline          # Show 10 posts
 bsky tl -n 20          # Show 20 posts
 
 # Post
 bsky post "Hello Bluesky!"
-bsky p "Short post"    # Alias
+bsky p "Short post"         # Alias
+bsky post "Test" --dry-run  # Preview without posting
 
 # Delete
 bsky delete <post_id>  # Delete by ID
@@ -57,6 +66,9 @@ bsky notif -n 30
 # Profile
 bsky profile                        # Your profile
 bsky profile @someone.bsky.social   # Someone else's
+
+# Version
+bsky --version
 ```
 
 ## Output Format
@@ -71,13 +83,18 @@ bsky profile @someone.bsky.social   # Someone else's
 ## Requirements
 
 - Python 3.8+
-- `atproto` package (auto-installed on first run)
+- `atproto` package (auto-installed in venv on first run)
 
 ## Installation
 
 Via ClawdHub:
 ```bash
 clawdhub install bluesky
+```
+
+Or clone directly:
+```bash
+git clone https://github.com/jeffaf/bluesky-skill.git ~/clawd/skills/bluesky
 ```
 
 ## License
