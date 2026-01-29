@@ -81,7 +81,6 @@ bsky --version
 ## Requirements
 
 - Python 3.8+
-- `atproto` package (auto-installed in venv on first run)
 
 ## Installation
 
