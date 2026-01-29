@@ -3,7 +3,6 @@
 
 import argparse
 import json
-import os
 import re
 import sys
 from datetime import datetime
@@ -19,18 +18,21 @@ except ImportError:
 
 CONFIG_PATH = Path.home() / ".config" / "bsky" / "config.json"
 
+
 def load_config():
     if CONFIG_PATH.exists():
         return json.loads(CONFIG_PATH.read_text())
     return {}
 
+
 def save_config(config):
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(json.dumps(config, indent=2))
 
+
 def get_client():
     config = load_config()
-    
+
     # Prefer session string (no password stored)
     if config.get("session"):
         client = Client()
@@ -44,9 +46,12 @@ def get_client():
             return client
         except Exception:
             # Session expired/invalid, need to re-login
-            print("Session expired. Run: bsky login --handle your.handle --password your-app-password", file=sys.stderr)
+            print(
+                "Session expired. Run: bsky login --handle your.handle --password your-app-password",
+                file=sys.stderr,
+            )
             sys.exit(1)
-    
+
     # Legacy: support old configs with app_password (migrate on use)
     if config.get("handle") and config.get("app_password"):
         client = Client()
@@ -57,9 +62,13 @@ def get_client():
         save_config(config)
         print("(Migrated to session-based auth, app password removed)", file=sys.stderr)
         return client
-    
-    print("Not logged in. Run: bsky login --handle your.handle --password your-app-password", file=sys.stderr)
+
+    print(
+        "Not logged in. Run: bsky login --handle your.handle --password your-app-password",
+        file=sys.stderr,
+    )
     sys.exit(1)
+
 
 def cmd_login(args):
     try:
@@ -69,7 +78,7 @@ def cmd_login(args):
         config = {
             "handle": client.me.handle,
             "did": client.me.did,
-            "session": client.export_session_string()
+            "session": client.export_session_string(),
         }
         save_config(config)
         print(f"Logged in as {client.me.handle} ({client.me.did})")
@@ -77,6 +86,7 @@ def cmd_login(args):
     except Exception as e:
         print(f"Login failed: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 def cmd_whoami(args):
     config = load_config()
@@ -87,61 +97,63 @@ def cmd_whoami(args):
     else:
         print("Not logged in")
 
+
 def cmd_timeline(args):
     client = get_client()
     response = client.get_timeline(limit=args.count)
-    
+
     for item in response.feed:
         post = item.post
         author = post.author.handle
-        text = post.record.text if hasattr(post.record, 'text') else ""
-        created = post.record.created_at if hasattr(post.record, 'created_at') else ""
+        text = post.record.text if hasattr(post.record, "text") else ""
+        created = post.record.created_at if hasattr(post.record, "created_at") else ""
         likes = post.like_count or 0
         reposts = post.repost_count or 0
         replies = post.reply_count or 0
-        
+
         try:
-            dt = datetime.fromisoformat(created.replace('Z', '+00:00'))
+            dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
             time_str = dt.strftime("%b %d %H:%M")
-        except:
+        except Exception:
             time_str = created[:16] if created else ""
-        
+
         print(f"@{author} · {time_str}")
         print(f"  {text[:200]}")
         print(f"  ❤️ {likes}  🔁 {reposts}  💬 {replies}")
         print(f"  🔗 https://bsky.app/profile/{author}/post/{post.uri.split('/')[-1]}")
         print()
 
+
 def cmd_post(args):
     text = args.text
-    
+
     # Dry run - show what would be posted without actually posting
     if args.dry_run:
         print("=== DRY RUN (not posting) ===")
         print(f"Text ({len(text)} chars):")
         print(f"  {text}")
-        
+
         # Check for URLs
-        url_pattern = r'(https?://[^\s]+)'
+        url_pattern = r"(https?://[^\s]+)"
         urls = re.findall(url_pattern, text)
         if urls:
             print(f"Links detected: {len(urls)}")
             for url in urls:
                 print(f"  • {url}")
-        
+
         # Warn if over limit
         if len(text) > 300:
             print(f"⚠️  Warning: {len(text)} chars exceeds 300 char limit!")
-        
+
         print("=============================")
         return
-    
+
     client = get_client()
-    
+
     # Auto-detect URLs and create proper facets using TextBuilder
-    url_pattern = r'(https?://[^\s]+)'
+    url_pattern = r"(https?://[^\s]+)"
     urls = re.findall(url_pattern, text)
-    
+
     if urls:
         # Use TextBuilder for proper link facets
         builder = client_utils.TextBuilder()
@@ -149,7 +161,7 @@ def cmd_post(args):
         for match in re.finditer(url_pattern, text):
             # Add text before the URL
             if match.start() > last_end:
-                builder.text(text[last_end:match.start()])
+                builder.text(text[last_end : match.start()])
             # Add the URL as a link
             url = match.group(1)
             builder.link(url, url)
@@ -160,21 +172,22 @@ def cmd_post(args):
         response = client.send_post(builder)
     else:
         response = client.send_post(text=text)
-    
+
     uri = response.uri
-    post_id = uri.split('/')[-1]
+    post_id = uri.split("/")[-1]
     print(f"Posted: https://bsky.app/profile/{client.me.handle}/post/{post_id}")
+
 
 def cmd_delete(args):
     client = get_client()
     # Extract post ID from URL or use raw ID
     post_id = args.post_id
     if "bsky.app" in post_id:
-        post_id = post_id.rstrip('/').split('/')[-1]
-    
+        post_id = post_id.rstrip("/").split("/")[-1]
+
     # Construct the URI
     uri = f"at://{client.me.did}/app.bsky.feed.post/{post_id}"
-    
+
     try:
         client.delete_post(uri)
         print(f"Deleted post: {post_id}")
@@ -182,14 +195,15 @@ def cmd_delete(args):
         print(f"Delete failed: {e}", file=sys.stderr)
         sys.exit(1)
 
+
 def cmd_profile(args):
     client = get_client()
-    handle = args.handle.lstrip('@') if args.handle else client.me.handle
-    
+    handle = args.handle.lstrip("@") if args.handle else client.me.handle
+
     # Auto-append .bsky.social if no domain specified
-    if handle and '.' not in handle:
+    if handle and "." not in handle:
         handle = f"{handle}.bsky.social"
-    
+
     profile = client.get_profile(handle)
     print(f"@{profile.handle}")
     print(f"  Name: {profile.display_name or '(none)'}")
@@ -199,42 +213,46 @@ def cmd_profile(args):
     print(f"  Posts: {profile.posts_count}")
     print(f"  DID: {profile.did}")
 
+
 def cmd_search(args):
     client = get_client()
     response = client.app.bsky.feed.search_posts({"q": args.query, "limit": args.count})
-    
+
     if not response.posts:
         print("No results found.")
         return
-    
+
     for post in response.posts:
         author = post.author.handle
-        text = post.record.text if hasattr(post.record, 'text') else ""
+        text = post.record.text if hasattr(post.record, "text") else ""
         likes = post.like_count or 0
-        
+
         print(f"@{author}: {text[:150]}")
-        print(f"  ❤️ {likes}  🔗 https://bsky.app/profile/{author}/post/{post.uri.split('/')[-1]}")
+        print(
+            f"  ❤️ {likes}  🔗 https://bsky.app/profile/{author}/post/{post.uri.split('/')[-1]}"
+        )
         print()
+
 
 def cmd_notifications(args):
     client = get_client()
     response = client.app.bsky.notification.list_notifications({"limit": args.count})
-    
+
     for notif in response.notifications:
         reason = notif.reason
         author = notif.author.handle
         time_str = notif.indexed_at[:16] if notif.indexed_at else ""
-        
+
         icons = {
             "like": "❤️",
             "repost": "🔁",
             "follow": "👤",
             "reply": "💬",
             "mention": "📢",
-            "quote": "💭"
+            "quote": "💭",
         }
         icon = icons.get(reason, "•")
-        
+
         if reason == "like":
             print(f"{icon} @{author} liked your post · {time_str}")
         elif reason == "repost":
@@ -250,47 +268,66 @@ def cmd_notifications(args):
         else:
             print(f"{icon} {reason} from @{author} · {time_str}")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Bluesky CLI")
     parser.add_argument("-v", "--version", action="version", version=f"bsky {VERSION}")
     subparsers = parser.add_subparsers(dest="command")
-    
+
     # login
     login_p = subparsers.add_parser("login", help="Login to Bluesky")
-    login_p.add_argument("--handle", required=True, help="Your handle (e.g. user.bsky.social)")
-    login_p.add_argument("--password", required=True, help="App password (not your main password)")
-    
+    login_p.add_argument(
+        "--handle", required=True, help="Your handle (e.g. user.bsky.social)"
+    )
+    login_p.add_argument(
+        "--password", required=True, help="App password (not your main password)"
+    )
+
     # whoami
     subparsers.add_parser("whoami", help="Show current user")
-    
+
     # timeline
-    tl_p = subparsers.add_parser("timeline", aliases=["tl", "home"], help="Show home timeline")
+    tl_p = subparsers.add_parser(
+        "timeline", aliases=["tl", "home"], help="Show home timeline"
+    )
     tl_p.add_argument("-n", "--count", type=int, default=10, help="Number of posts")
-    
+
     # post
     post_p = subparsers.add_parser("post", aliases=["p"], help="Create a post")
     post_p.add_argument("text", help="Post text")
-    post_p.add_argument("--dry-run", action="store_true", help="Show what would be posted without posting")
-    
+    post_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be posted without posting",
+    )
+
     # delete
     del_p = subparsers.add_parser("delete", aliases=["del", "rm"], help="Delete a post")
     del_p.add_argument("post_id", help="Post ID or URL")
-    
+
     # profile
     profile_p = subparsers.add_parser("profile", help="Show profile")
-    profile_p.add_argument("handle", nargs="?", help="Handle to look up (default: self)")
-    
+    profile_p.add_argument(
+        "handle", nargs="?", help="Handle to look up (default: self)"
+    )
+
     # search
     search_p = subparsers.add_parser("search", aliases=["s"], help="Search posts")
     search_p.add_argument("query", help="Search query")
-    search_p.add_argument("-n", "--count", type=int, default=10, help="Number of results")
-    
+    search_p.add_argument(
+        "-n", "--count", type=int, default=10, help="Number of results"
+    )
+
     # notifications
-    notif_p = subparsers.add_parser("notifications", aliases=["notif", "n"], help="Show notifications")
-    notif_p.add_argument("-n", "--count", type=int, default=20, help="Number of notifications")
-    
+    notif_p = subparsers.add_parser(
+        "notifications", aliases=["notif", "n"], help="Show notifications"
+    )
+    notif_p.add_argument(
+        "-n", "--count", type=int, default=20, help="Number of notifications"
+    )
+
     args = parser.parse_args()
-    
+
     commands = {
         "login": cmd_login,
         "whoami": cmd_whoami,
@@ -309,11 +346,12 @@ def main():
         "notif": cmd_notifications,
         "n": cmd_notifications,
     }
-    
+
     if args.command in commands:
         commands[args.command](args)
     else:
         parser.print_help()
+
 
 if __name__ == "__main__":
     main()
