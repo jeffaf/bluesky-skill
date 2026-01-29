@@ -1,4 +1,4 @@
-# 🦋 Bluesky Skill
+# 🦋 Bluesky CLI
 
 A Moltbot skill for interacting with Bluesky (AT Protocol) from the command line.
 
@@ -7,11 +7,12 @@ A Moltbot skill for interacting with Bluesky (AT Protocol) from the command line
 ## Features
 
 - **Timeline** - View your home feed
-- **Post** - Create new posts (with `--dry-run` preview)
+- **Post** - Create posts with auto-linked URLs and @mentions
 - **Search** - Search posts across Bluesky
-- **Notifications** - Check likes, reposts, follows, mentions
+- **Notifications** - Check likes, reposts, follows, mentions, quotes
 - **Profile** - Look up user profiles
 - **Delete** - Remove your posts
+- **Secure** - Session-based auth (password never stored)
 
 ## Setup
 
@@ -26,6 +27,8 @@ A Moltbot skill for interacting with Bluesky (AT Protocol) from the command line
 bsky login --handle yourhandle.bsky.social --password xxxx-xxxx-xxxx-xxxx
 ```
 
+Your password is used once to create a session token, then discarded. It's never stored on disk.
+
 ### 3. Verify
 
 ```bash
@@ -34,43 +37,72 @@ bsky whoami
 
 ## Usage
 
+### Authentication
 ```bash
-# Authentication
 bsky login --handle user.bsky.social --password xxxx-xxxx-xxxx-xxxx
-bsky logout
-bsky whoami
+bsky logout                # Clear session
+bsky whoami                # Show current user
+```
 
-# Timeline
-bsky timeline          # Show 10 posts
-bsky tl -n 20          # Show 20 posts
+### Timeline
+```bash
+bsky timeline              # Show 10 posts
+bsky timeline -n 20        # Show 20 posts
+bsky tl                    # Alias
+bsky home                  # Alias
+```
 
-# Post
+### Posting
+```bash
 bsky post "Hello Bluesky!"
-bsky p "Short post"         # Alias
-bsky post "Test" --dry-run  # Preview without posting
+bsky p "Short post"              # Alias
+bsky post "Test" --dry-run       # Preview without posting
+```
 
-# Delete
-bsky delete <post_id>  # Delete by ID
-bsky rm <url>          # Delete by URL
+**Smart features (automatic):**
+- URLs become clickable links
+- `@mentions` resolve to profiles and become clickable
 
-# Search
+### Delete
+```bash
+bsky delete <post_id>                              # Delete by ID
+bsky delete https://bsky.app/profile/.../post/... # Delete by URL
+bsky del <id>                                      # Alias
+bsky rm <id>                                       # Alias
+```
+
+### Search
+```bash
 bsky search "query"
-bsky search "offsec" -n 20
+bsky search "topic" -n 20   # More results
+bsky s "query"              # Alias
+```
 
-# Notifications  
-bsky notifications
-bsky notif -n 30
+### Notifications
+```bash
+bsky notifications          # Show 20 notifications
+bsky notif -n 30            # Custom count
+bsky n                      # Alias
+```
 
-# Profile
+Notification types: ❤️ like, 🔁 repost, 👤 follow, 💬 reply, 📢 mention, 💭 quote
+
+### Profile
+```bash
 bsky profile                        # Your profile
 bsky profile @someone.bsky.social   # Someone else's
+bsky profile someone                # Auto-appends .bsky.social
+```
 
-# Version
+### Version
+```bash
 bsky --version
+bsky -v
 ```
 
 ## Output Format
 
+**Timeline:**
 ```
 @handle · Jan 25 14:30
   Post text here...
@@ -78,21 +110,37 @@ bsky --version
   🔗 https://bsky.app/profile/handle/post/id
 ```
 
+**Search results:**
+```
+@handle: Post text (truncated)...
+  ❤️ 42  🔗 https://bsky.app/profile/handle/post/id
+```
+
 ## Requirements
 
 - Python 3.8+
+- `atproto` package (auto-installed via venv)
 
 ## Installation
 
-Via MoltHub:
+Clone into your skills directory:
 ```bash
-molthub install bluesky
+git clone <repo-url> ~/clawd/skills/bluesky
 ```
 
-Or clone directly:
-```bash
-git clone https://github.com/jeffaf/bluesky-skill.git ~/clawd/skills/bluesky
-```
+The wrapper script auto-creates a virtual environment on first run.
+
+## Configuration
+
+- **Location:** `~/.config/bsky/config.json`
+- **Permissions:** 600 (owner-only)
+- **Contents:** Session token and handle (no passwords)
+
+## Security
+
+- App password used only during `login`, never stored
+- Session tokens (JWT) auto-refresh as needed
+- Config file restricted to owner-only permissions
 
 ## License
 
