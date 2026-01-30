@@ -15,7 +15,7 @@ All notable changes to the bsky CLI skill.
 - Pinned atproto version (`>=0.0.65,<0.1.0`) to prevent surprise breaks
 
 ### Changed
-- Rebranded from Clawdbot to Moltbot
+- Rebranded from OpenClaw to Moltbot
 
 ## [1.1.1] - 2026-01-28
 
