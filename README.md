@@ -148,4 +148,4 @@ MIT
 
 ---
 
-*Built for [Moltbot](https://github.com/moltbot/moltbot)*
+*Built for [OpenClaw](https://github.com/openclaw/openclaw) / [Clawdbot](https://github.com/clawdbot/clawdbot)*
