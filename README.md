@@ -1,6 +1,6 @@
 # 🦋 Bluesky CLI
 
-A Moltbot skill for interacting with Bluesky (AT Protocol) from the command line.
+An OpenClaw skill for interacting with Bluesky (AT Protocol) from the command line.
 
 **Version:** 1.2.0
 
@@ -148,4 +148,4 @@ MIT
 
 ---
 
-*Built for [OpenClaw](https://github.com/openclaw/openclaw) / [Clawdbot](https://github.com/clawdbot/clawdbot)*
+*Built for [OpenClaw](https://github.com/openclaw/openclaw)*
