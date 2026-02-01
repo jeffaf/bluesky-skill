@@ -1,6 +1,6 @@
 ---
 name: bluesky
-version: 1.2.0
+version: 1.3.0
 description: Read, post, and interact with Bluesky (AT Protocol) via CLI. Use when user asks to check Bluesky, post to Bluesky, view their Bluesky timeline, search Bluesky, or check Bluesky notifications. Supports timeline, posting, profile lookup, search, and notifications.
 homepage: https://bsky.app
 metadata:
@@ -49,6 +49,28 @@ bsky post "Test" --dry-run # Preview without posting
 # Smart features (automatic):
 # - URLs become clickable links
 # - @mentions resolve to profiles (e.g., @someone becomes clickable)
+```
+
+### Reply
+```bash
+bsky reply <url> "Your reply"     # Reply to a post
+bsky r <url> "text"               # Alias
+bsky reply <url> "test" --dry-run # Preview without posting
+```
+
+### Quote
+```bash
+bsky quote <url> "Your take"      # Quote-post
+bsky qt <url> "text"              # Alias
+bsky quote <url> "test" --dry-run # Preview without posting
+```
+
+### Thread
+```bash
+bsky thread <url>                 # View full conversation
+bsky thread <url> --depth 10      # Fetch deeper reply tree
+bsky thread <url> --json          # Output as JSON
+bsky th <url>                     # Alias
 ```
 
 ### Delete

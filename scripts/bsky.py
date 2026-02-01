@@ -9,10 +9,10 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 try:
-    from atproto import Client, client_utils
+    from atproto import Client, client_utils, models
 except ImportError:
     print("Error: atproto not installed. Run: pip install atproto", file=sys.stderr)
     sys.exit(1)
@@ -72,6 +72,59 @@ def get_client():
     sys.exit(1)
 
 
+def parse_post_uri(uri_or_url):
+    """Convert bsky.app URL or at:// URI to at:// URI format."""
+    if uri_or_url.startswith("at://"):
+        return uri_or_url
+    
+    # Parse bsky.app URL: https://bsky.app/profile/handle/post/id
+    match = re.match(r"https?://bsky\.app/profile/([^/]+)/post/([^/\?]+)", uri_or_url)
+    if match:
+        handle, post_id = match.groups()
+        # We need to resolve handle to DID - will do this in the command
+        return {"handle": handle, "post_id": post_id}
+    
+    # Might just be a post ID
+    if "/" not in uri_or_url and not uri_or_url.startswith("at://"):
+        return {"post_id": uri_or_url}
+    
+    raise ValueError(f"Cannot parse post reference: {uri_or_url}")
+
+
+def resolve_post(client, uri_or_url):
+    """Resolve a post URI/URL to get full post details including CID."""
+    parsed = parse_post_uri(uri_or_url)
+    
+    if isinstance(parsed, str):
+        # Already an at:// URI
+        uri = parsed
+    elif "handle" in parsed:
+        # Need to resolve handle to DID first
+        handle = parsed["handle"]
+        if "." not in handle:
+            handle = f"{handle}.bsky.social"
+        profile = client.get_profile(handle)
+        uri = f"at://{profile.did}/app.bsky.feed.post/{parsed['post_id']}"
+    else:
+        # Just post_id, use current user
+        uri = f"at://{client.me.did}/app.bsky.feed.post/{parsed['post_id']}"
+    
+    # Fetch the post to get CID
+    response = client.get_posts([uri])
+    if not response.posts:
+        raise ValueError(f"Post not found: {uri}")
+    
+    return response.posts[0]
+
+
+def get_thread_root(post):
+    """Get the root of a thread from a post."""
+    if hasattr(post.record, 'reply') and post.record.reply:
+        return post.record.reply.root
+    # This post is the root
+    return models.ComAtprotoRepoStrongRef.Main(uri=post.uri, cid=post.cid)
+
+
 def cmd_login(args):
     try:
         client = Client()
@@ -112,30 +165,114 @@ def cmd_whoami(args):
         print("Not logged in")
 
 
+def format_post(post, include_link=True):
+    """Format a post for display."""
+    author = post.author.handle
+    text = post.record.text if hasattr(post.record, "text") else ""
+    created = post.record.created_at if hasattr(post.record, "created_at") else ""
+    likes = post.like_count or 0
+    reposts = post.repost_count or 0
+    replies = post.reply_count or 0
+
+    try:
+        dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        time_str = dt.strftime("%b %d %H:%M")
+    except Exception:
+        time_str = created[:16] if created else ""
+
+    lines = [
+        f"@{author} · {time_str}",
+        f"  {text[:200]}",
+        f"  ❤️ {likes}  🔁 {reposts}  💬 {replies}",
+    ]
+    if include_link:
+        lines.append(f"  🔗 https://bsky.app/profile/{author}/post/{post.uri.split('/')[-1]}")
+    
+    return "\n".join(lines)
+
+
+def post_to_dict(post):
+    """Convert a post to a dictionary for JSON output."""
+    return {
+        "uri": post.uri,
+        "cid": post.cid,
+        "author": {
+            "handle": post.author.handle,
+            "did": post.author.did,
+            "displayName": getattr(post.author, 'display_name', None),
+        },
+        "text": post.record.text if hasattr(post.record, "text") else "",
+        "createdAt": post.record.created_at if hasattr(post.record, "created_at") else "",
+        "likes": post.like_count or 0,
+        "reposts": post.repost_count or 0,
+        "replies": post.reply_count or 0,
+        "url": f"https://bsky.app/profile/{post.author.handle}/post/{post.uri.split('/')[-1]}",
+    }
+
+
 def cmd_timeline(args):
     client = get_client()
     response = client.get_timeline(limit=args.count)
 
+    if args.json:
+        posts = [post_to_dict(item.post) for item in response.feed]
+        print(json.dumps(posts, indent=2))
+        return
+
     for item in response.feed:
-        post = item.post
-        author = post.author.handle
-        text = post.record.text if hasattr(post.record, "text") else ""
-        created = post.record.created_at if hasattr(post.record, "created_at") else ""
-        likes = post.like_count or 0
-        reposts = post.repost_count or 0
-        replies = post.reply_count or 0
-
-        try:
-            dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
-            time_str = dt.strftime("%b %d %H:%M")
-        except Exception:
-            time_str = created[:16] if created else ""
-
-        print(f"@{author} · {time_str}")
-        print(f"  {text[:200]}")
-        print(f"  ❤️ {likes}  🔁 {reposts}  💬 {replies}")
-        print(f"  🔗 https://bsky.app/profile/{author}/post/{post.uri.split('/')[-1]}")
+        print(format_post(item.post))
         print()
+
+
+def build_post_with_facets(client, text):
+    """Build a post with proper facets for URLs and mentions."""
+    url_pattern = r"(https?://[^\s]+)"
+    urls = re.findall(url_pattern, text)
+    
+    mention_pattern = r"@([a-zA-Z0-9._-]+)"
+    mentions = re.findall(mention_pattern, text)
+
+    if not urls and not mentions:
+        return text, None
+
+    # Use TextBuilder for proper facets (links and mentions)
+    builder = client_utils.TextBuilder()
+
+    # Combined pattern to find both URLs and mentions in order
+    combined_pattern = r"(https?://[^\s]+)|(@[a-zA-Z0-9._-]+)"
+    last_end = 0
+
+    # Resolve mention handles to DIDs
+    mention_dids = {}
+    for handle in mentions:
+        full_handle = handle if "." in handle else f"{handle}.bsky.social"
+        try:
+            profile = client.get_profile(full_handle)
+            mention_dids[handle] = profile.did
+        except Exception:
+            pass
+
+    for match in re.finditer(combined_pattern, text):
+        if match.start() > last_end:
+            builder.text(text[last_end : match.start()])
+
+        if match.group(1):  # URL
+            url = match.group(1)
+            builder.link(url, url)
+        elif match.group(2):  # Mention
+            mention_text = match.group(2)
+            handle = mention_text[1:]
+            if handle in mention_dids:
+                builder.mention(mention_text, mention_dids[handle])
+            else:
+                builder.text(mention_text)
+
+        last_end = match.end()
+
+    if last_end < len(text):
+        builder.text(text[last_end:])
+
+    return builder
 
 
 def cmd_post(args):
@@ -156,7 +293,6 @@ def cmd_post(args):
         print(f"Text ({len(text)} chars):")
         print(f"  {text}")
 
-        # Check for URLs
         url_pattern = r"(https?://[^\s]+)"
         urls = re.findall(url_pattern, text)
         if urls:
@@ -168,62 +304,206 @@ def cmd_post(args):
         return
 
     client = get_client()
-
-    # Auto-detect URLs and create proper facets using TextBuilder
-    url_pattern = r"(https?://[^\s]+)"
-    urls = re.findall(url_pattern, text)
-
-    # Also detect @mentions
-    mention_pattern = r"@([a-zA-Z0-9._-]+)"
-    mentions = re.findall(mention_pattern, text)
-
-    if urls or mentions:
-        # Use TextBuilder for proper facets (links and mentions)
-        builder = client_utils.TextBuilder()
-
-        # Combined pattern to find both URLs and mentions in order
-        combined_pattern = r"(https?://[^\s]+)|(@[a-zA-Z0-9._-]+)"
-        last_end = 0
-
-        # Resolve mention handles to DIDs
-        mention_dids = {}
-        for handle in mentions:
-            full_handle = handle if "." in handle else f"{handle}.bsky.social"
-            try:
-                profile = client.get_profile(full_handle)
-                mention_dids[handle] = profile.did
-            except Exception:
-                # If we can't resolve, skip making it a facet
-                pass
-
-        for match in re.finditer(combined_pattern, text):
-            # Add text before the match
-            if match.start() > last_end:
-                builder.text(text[last_end : match.start()])
-
-            if match.group(1):  # URL
-                url = match.group(1)
-                builder.link(url, url)
-            elif match.group(2):  # Mention
-                mention_text = match.group(2)
-                handle = mention_text[1:]  # Remove @
-                if handle in mention_dids:
-                    builder.mention(mention_text, mention_dids[handle])
-                else:
-                    builder.text(mention_text)  # Can't resolve, just text
-
-            last_end = match.end()
-
-        # Add any remaining text
-        if last_end < len(text):
-            builder.text(text[last_end:])
-        response = client.send_post(builder)
+    built = build_post_with_facets(client, text)
+    
+    if isinstance(built, client_utils.TextBuilder):
+        response = client.send_post(built)
     else:
         response = client.send_post(text=text)
 
     uri = response.uri
     post_id = uri.split("/")[-1]
     print(f"Posted: https://bsky.app/profile/{client.me.handle}/post/{post_id}")
+
+
+def cmd_reply(args):
+    text = args.text
+
+    # Validate text
+    if not text or not text.strip():
+        print("Error: Reply text cannot be empty", file=sys.stderr)
+        sys.exit(1)
+
+    if len(text) > 300:
+        print(f"Error: Reply is {len(text)} chars (max 300)", file=sys.stderr)
+        sys.exit(1)
+
+    if args.dry_run:
+        print("=== DRY RUN (not replying) ===")
+        print(f"Replying to: {args.uri}")
+        print(f"Text ({len(text)} chars):")
+        print(f"  {text}")
+        print("==============================")
+        return
+
+    client = get_client()
+    
+    # Resolve the parent post
+    try:
+        parent_post = resolve_post(client, args.uri)
+    except Exception as e:
+        print(f"Error resolving post: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Get thread root
+    root_ref = get_thread_root(parent_post)
+    parent_ref = models.ComAtprotoRepoStrongRef.Main(
+        uri=parent_post.uri, 
+        cid=parent_post.cid
+    )
+
+    # Build reply reference
+    reply_ref = models.AppBskyFeedPost.ReplyRef(
+        root=root_ref,
+        parent=parent_ref
+    )
+
+    # Build post with facets
+    built = build_post_with_facets(client, text)
+    
+    if isinstance(built, client_utils.TextBuilder):
+        response = client.send_post(built, reply_to=reply_ref)
+    else:
+        response = client.send_post(text=text, reply_to=reply_ref)
+
+    uri = response.uri
+    post_id = uri.split("/")[-1]
+    print(f"Replied: https://bsky.app/profile/{client.me.handle}/post/{post_id}")
+
+
+def cmd_quote(args):
+    text = args.text
+
+    # Validate text
+    if not text or not text.strip():
+        print("Error: Quote text cannot be empty", file=sys.stderr)
+        sys.exit(1)
+
+    if len(text) > 300:
+        print(f"Error: Quote is {len(text)} chars (max 300)", file=sys.stderr)
+        sys.exit(1)
+
+    if args.dry_run:
+        print("=== DRY RUN (not quoting) ===")
+        print(f"Quoting: {args.uri}")
+        print(f"Text ({len(text)} chars):")
+        print(f"  {text}")
+        print("=============================")
+        return
+
+    client = get_client()
+    
+    # Resolve the quoted post
+    try:
+        quoted_post = resolve_post(client, args.uri)
+    except Exception as e:
+        print(f"Error resolving post: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Create embed for quote
+    embed = models.AppBskyEmbedRecord.Main(
+        record=models.ComAtprotoRepoStrongRef.Main(
+            uri=quoted_post.uri,
+            cid=quoted_post.cid
+        )
+    )
+
+    # Build post with facets
+    built = build_post_with_facets(client, text)
+    
+    if isinstance(built, client_utils.TextBuilder):
+        response = client.send_post(built, embed=embed)
+    else:
+        response = client.send_post(text=text, embed=embed)
+
+    uri = response.uri
+    post_id = uri.split("/")[-1]
+    print(f"Quoted: https://bsky.app/profile/{client.me.handle}/post/{post_id}")
+
+
+def cmd_thread(args):
+    client = get_client()
+    
+    # Resolve the post URI
+    try:
+        if args.uri.startswith("at://"):
+            uri = args.uri
+        else:
+            post = resolve_post(client, args.uri)
+            uri = post.uri
+    except Exception as e:
+        print(f"Error resolving post: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Get thread
+    response = client.get_post_thread(uri, depth=args.depth)
+    
+    if not response.thread:
+        print("Thread not found")
+        return
+
+    def print_thread_post(thread_item, indent=0):
+        """Recursively print thread posts."""
+        prefix = "  " * indent
+        
+        if hasattr(thread_item, 'post'):
+            post = thread_item.post
+            author = post.author.handle
+            text = post.record.text if hasattr(post.record, "text") else ""
+            likes = post.like_count or 0
+            reposts = post.repost_count or 0
+            replies = post.reply_count or 0
+            
+            try:
+                created = post.record.created_at
+                dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                time_str = dt.strftime("%b %d %H:%M")
+            except Exception:
+                time_str = ""
+
+            if args.json:
+                return post_to_dict(post)
+
+            print(f"{prefix}┌─ @{author} · {time_str}")
+            for line in text.split('\n'):
+                print(f"{prefix}│  {line[:200]}")
+            print(f"{prefix}│  ❤️ {likes}  🔁 {reposts}  💬 {replies}")
+            print(f"{prefix}└─ 🔗 https://bsky.app/profile/{author}/post/{post.uri.split('/')[-1]}")
+            print()
+
+            # Print replies
+            if hasattr(thread_item, 'replies') and thread_item.replies:
+                for reply in thread_item.replies:
+                    print_thread_post(reply, indent + 1)
+    
+    # Print parent chain first (if exists)
+    if hasattr(response.thread, 'parent') and response.thread.parent:
+        def print_parents(parent, depth=0):
+            if depth > 10:  # Safety limit
+                return
+            if hasattr(parent, 'parent') and parent.parent:
+                print_parents(parent.parent, depth + 1)
+            if hasattr(parent, 'post'):
+                print("↑ Parent:")
+                print_thread_post(parent, 0)
+        print_parents(response.thread.parent)
+        print("─" * 40)
+        print("📍 This post:")
+        print()
+
+    if args.json:
+        posts = []
+        def collect_posts(item):
+            if hasattr(item, 'post'):
+                posts.append(post_to_dict(item.post))
+            if hasattr(item, 'replies') and item.replies:
+                for reply in item.replies:
+                    collect_posts(reply)
+        collect_posts(response.thread)
+        print(json.dumps(posts, indent=2))
+        return
+
+    print_thread_post(response.thread)
 
 
 def cmd_delete(args):
@@ -233,8 +513,12 @@ def cmd_delete(args):
     if "bsky.app" in post_id:
         post_id = post_id.rstrip("/").split("/")[-1]
 
-    # Construct the URI
-    uri = f"at://{client.me.did}/app.bsky.feed.post/{post_id}"
+    # Handle at:// URIs
+    if post_id.startswith("at://"):
+        uri = post_id
+    else:
+        # Construct the URI
+        uri = f"at://{client.me.did}/app.bsky.feed.post/{post_id}"
 
     try:
         client.delete_post(uri)
@@ -253,6 +537,20 @@ def cmd_profile(args):
         handle = f"{handle}.bsky.social"
 
     profile = client.get_profile(handle)
+    
+    if args.json:
+        data = {
+            "handle": profile.handle,
+            "did": profile.did,
+            "displayName": profile.display_name,
+            "description": profile.description,
+            "followersCount": profile.followers_count,
+            "followsCount": profile.follows_count,
+            "postsCount": profile.posts_count,
+        }
+        print(json.dumps(data, indent=2))
+        return
+
     print(f"@{profile.handle}")
     print(f"  Name: {profile.display_name or '(none)'}")
     print(f"  Bio: {profile.description or '(none)'}")
@@ -270,6 +568,11 @@ def cmd_search(args):
         print("No results found.")
         return
 
+    if args.json:
+        posts = [post_to_dict(post) for post in response.posts]
+        print(json.dumps(posts, indent=2))
+        return
+
     for post in response.posts:
         author = post.author.handle
         text = post.record.text if hasattr(post.record, "text") else ""
@@ -285,6 +588,26 @@ def cmd_search(args):
 def cmd_notifications(args):
     client = get_client()
     response = client.app.bsky.notification.list_notifications({"limit": args.count})
+
+    if args.json:
+        notifs = []
+        for notif in response.notifications:
+            notifs.append({
+                "reason": notif.reason,
+                "author": {
+                    "handle": notif.author.handle,
+                    "did": notif.author.did,
+                },
+                "indexedAt": notif.indexed_at,
+                "uri": notif.uri,
+                "isRead": notif.is_read,
+            })
+        print(json.dumps(notifs, indent=2))
+        return
+
+    if not response.notifications:
+        print("No notifications yet — go make some noise! 📢")
+        return
 
     for notif in response.notifications:
         reason = notif.reason
@@ -342,6 +665,7 @@ def main():
         "timeline", aliases=["tl", "home"], help="Show home timeline"
     )
     tl_p.add_argument("-n", "--count", type=int, default=10, help="Number of posts")
+    tl_p.add_argument("--json", action="store_true", help="Output as JSON")
 
     # post
     post_p = subparsers.add_parser("post", aliases=["p"], help="Create a post")
@@ -352,6 +676,32 @@ def main():
         help="Show what would be posted without posting",
     )
 
+    # reply
+    reply_p = subparsers.add_parser("reply", aliases=["r"], help="Reply to a post")
+    reply_p.add_argument("uri", help="Post URI or URL to reply to")
+    reply_p.add_argument("text", help="Reply text")
+    reply_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be posted without posting",
+    )
+
+    # quote
+    quote_p = subparsers.add_parser("quote", aliases=["qt"], help="Quote a post")
+    quote_p.add_argument("uri", help="Post URI or URL to quote")
+    quote_p.add_argument("text", help="Quote text")
+    quote_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be posted without posting",
+    )
+
+    # thread
+    thread_p = subparsers.add_parser("thread", aliases=["th"], help="View a thread")
+    thread_p.add_argument("uri", help="Post URI or URL")
+    thread_p.add_argument("--depth", type=int, default=6, help="Reply depth to fetch")
+    thread_p.add_argument("--json", action="store_true", help="Output as JSON")
+
     # delete
     del_p = subparsers.add_parser("delete", aliases=["del", "rm"], help="Delete a post")
     del_p.add_argument("post_id", help="Post ID or URL")
@@ -361,6 +711,7 @@ def main():
     profile_p.add_argument(
         "handle", nargs="?", help="Handle to look up (default: self)"
     )
+    profile_p.add_argument("--json", action="store_true", help="Output as JSON")
 
     # search
     search_p = subparsers.add_parser("search", aliases=["s"], help="Search posts")
@@ -368,6 +719,7 @@ def main():
     search_p.add_argument(
         "-n", "--count", type=int, default=10, help="Number of results"
     )
+    search_p.add_argument("--json", action="store_true", help="Output as JSON")
 
     # notifications
     notif_p = subparsers.add_parser(
@@ -376,6 +728,7 @@ def main():
     notif_p.add_argument(
         "-n", "--count", type=int, default=20, help="Number of notifications"
     )
+    notif_p.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
 
@@ -388,6 +741,12 @@ def main():
         "home": cmd_timeline,
         "post": cmd_post,
         "p": cmd_post,
+        "reply": cmd_reply,
+        "r": cmd_reply,
+        "quote": cmd_quote,
+        "qt": cmd_quote,
+        "thread": cmd_thread,
+        "th": cmd_thread,
         "delete": cmd_delete,
         "del": cmd_delete,
         "rm": cmd_delete,

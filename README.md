@@ -2,16 +2,20 @@
 
 An OpenClaw skill for interacting with Bluesky (AT Protocol) from the command line.
 
-**Version:** 1.2.0
+**Version:** 1.3.0
 
 ## Features
 
 - **Timeline** - View your home feed
 - **Post** - Create posts with auto-linked URLs and @mentions
+- **Reply** - Reply to posts (NEW in 1.3)
+- **Quote** - Quote-post with your commentary (NEW in 1.3)
+- **Thread** - View full conversation context (NEW in 1.3)
 - **Search** - Search posts across Bluesky
 - **Notifications** - Check likes, reposts, follows, mentions, quotes
 - **Profile** - Look up user profiles
 - **Delete** - Remove your posts
+- **JSON Output** - `--json` flag on all read commands (NEW in 1.3)
 - **Secure** - Session-based auth (password never stored)
 
 ## Setup
@@ -62,6 +66,29 @@ bsky post "Test" --dry-run       # Preview without posting
 **Smart features (automatic):**
 - URLs become clickable links
 - `@mentions` resolve to profiles and become clickable
+
+### Reply
+```bash
+bsky reply <post-url> "Your reply here"
+bsky reply <at://uri> "Reply text"
+bsky r <url> "Short alias"                         # Alias
+bsky reply <url> "Test" --dry-run                  # Preview without posting
+```
+
+### Quote
+```bash
+bsky quote <post-url> "Your commentary"
+bsky qt <url> "Short alias"                        # Alias
+bsky quote <url> "Test" --dry-run                  # Preview without posting
+```
+
+### Thread
+```bash
+bsky thread <post-url>                             # View full conversation
+bsky thread <url> --depth 10                       # Fetch more replies
+bsky thread <url> --json                           # Output as JSON
+bsky th <url>                                      # Alias
+```
 
 ### Delete
 ```bash

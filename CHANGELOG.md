@@ -2,6 +2,25 @@
 
 All notable changes to the bsky CLI skill.
 
+## [1.3.0] - 2026-02-01
+
+### Added
+- `bsky reply <uri> "text"` — Reply to posts
+- `bsky quote <uri> "text"` — Quote-post
+- `bsky thread <uri>` — View full conversation with parent chain and replies
+- `--json` flag on timeline, search, notifications, profile, thread
+- `--depth` flag on thread command (default: 6)
+- Empty state messages ("No notifications yet — go make some noise!")
+- Aliases: `r` for reply, `qt` for quote, `th` for thread
+
+### Improved
+- Refactored post building into reusable `build_post_with_facets()`
+- Better URL/URI parsing (handles both `at://` and `https://bsky.app/` formats)
+- Thread view shows parent chain above current post
+
+### Changed
+- Rebranded to OpenClaw
+
 ## [1.2.0] - 2026-01-29
 
 ### Added
