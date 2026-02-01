@@ -117,7 +117,7 @@ cd ~/clawd/skills/bluesky/scripts
 ### Requirements
 
 - Python 3.8+
-- `atproto` package (auto-installed)
+- `atproto` package (installed automatically on first run via venv)
 
 ## 🎯 Tips
 
