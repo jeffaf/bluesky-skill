@@ -2,7 +2,7 @@
 
 An OpenClaw skill for interacting with Bluesky (AT Protocol) from the command line.
 
-**Version:** 1.4.0
+**Version:** 1.5.0
 
 ## Features
 
@@ -13,7 +13,9 @@ An OpenClaw skill for interacting with Bluesky (AT Protocol) from the command li
 - **Thread** - View full conversation context
 - **Like/Unlike** - Engage with posts (NEW in 1.4)
 - **Repost** - Boost posts (NEW in 1.4)
-- **Follow/Unfollow** - Manage follows (NEW in 1.4)
+- **Follow/Unfollow** - Manage follows
+- **Block/Mute** - Moderation controls (NEW in 1.5)
+- **Images** - Attach images to posts (NEW in 1.5)
 - **Search** - Search posts across Bluesky
 - **Notifications** - Check likes, reposts, follows, mentions, quotes
 - **Profile** - Look up user profiles
@@ -113,6 +115,22 @@ bsky follow @someone.bsky.social                   # Follow user
 bsky follow someone                                # Auto-appends .bsky.social
 bsky unfollow @someone.bsky.social                 # Unfollow user
 ```
+
+### Block / Mute
+```bash
+bsky block @someone.bsky.social                    # Block user
+bsky unblock @someone.bsky.social                  # Unblock user
+bsky mute @someone.bsky.social                     # Mute user
+bsky unmute @someone.bsky.social                   # Unmute user
+```
+
+### Images
+```bash
+bsky post "Check this out!" --image photo.jpg --alt "Description of image"
+```
+- Max 1MB image size
+- Alt text is required (accessibility)
+- Supports jpg, png, gif
 
 ### Delete
 ```bash

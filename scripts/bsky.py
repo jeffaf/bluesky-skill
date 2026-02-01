@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 try:
     from atproto import Client, client_utils, models
@@ -291,6 +291,27 @@ def cmd_post(args):
         print(f"Error: Post is {len(text)} chars (max 300)", file=sys.stderr)
         sys.exit(1)
 
+    # Validate image args
+    if args.image and not args.alt:
+        print("Error: --alt is required when using --image", file=sys.stderr)
+        sys.exit(1)
+
+    # Load image if provided
+    image_data = None
+    if args.image:
+        image_path = Path(args.image).expanduser()
+        if not image_path.exists():
+            print(f"Error: Image file not found: {args.image}", file=sys.stderr)
+            sys.exit(1)
+        image_data = image_path.read_bytes()
+        # Check size (max 1MB for Bluesky)
+        if len(image_data) > 1_000_000:
+            print(
+                f"Error: Image too large ({len(image_data) / 1_000_000:.1f}MB, max 1MB)",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
     # Dry run - show what would be posted without actually posting
     if args.dry_run:
         print("=== DRY RUN (not posting) ===")
@@ -304,16 +325,30 @@ def cmd_post(args):
             for url in urls:
                 print(f"  • {url}")
 
+        if args.image:
+            print(f"Image: {args.image}")
+            print(f"  Alt: {args.alt}")
+            if image_data:
+                print(f"  Size: {len(image_data) / 1000:.1f}KB")
+
         print("=============================")
         return
 
     client = get_client()
-    built = build_post_with_facets(client, text)
 
-    if isinstance(built, client_utils.TextBuilder):
-        response = client.send_post(built)
+    # Post with image
+    if image_data:
+        response = client.send_image(
+            text=text,
+            image=image_data,
+            image_alt=args.alt,
+        )
     else:
-        response = client.send_post(text=text)
+        built = build_post_with_facets(client, text)
+        if isinstance(built, client_utils.TextBuilder):
+            response = client.send_post(built)
+        else:
+            response = client.send_post(text=text)
 
     uri = response.uri
     post_id = uri.split("/")[-1]
@@ -801,6 +836,95 @@ def cmd_unfollow(args):
         sys.exit(1)
 
 
+def cmd_block(args):
+    client = get_client()
+
+    handle = args.handle.lstrip("@")
+    if "." not in handle:
+        handle = f"{handle}.bsky.social"
+
+    try:
+        profile = client.get_profile(handle)
+
+        # Check if already blocked
+        if hasattr(profile, "viewer") and profile.viewer and profile.viewer.blocking:
+            print(f"Already blocking @{profile.handle}", file=sys.stderr)
+            sys.exit(1)
+
+        # Create block record
+        client.app.bsky.graph.block.create(
+            client.me.did,
+            models.AppBskyGraphBlock.Record(
+                subject=profile.did,
+                created_at=client.get_current_time_iso(),
+            ),
+        )
+        print(f"🚫 Blocked @{profile.handle}")
+    except Exception as e:
+        print(f"Block failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_unblock(args):
+    client = get_client()
+
+    handle = args.handle.lstrip("@")
+    if "." not in handle:
+        handle = f"{handle}.bsky.social"
+
+    try:
+        profile = client.get_profile(handle)
+
+        # Check if blocking
+        if (
+            not hasattr(profile, "viewer")
+            or not profile.viewer
+            or not profile.viewer.blocking
+        ):
+            print(f"You're not blocking @{profile.handle}", file=sys.stderr)
+            sys.exit(1)
+
+        block_uri = profile.viewer.blocking
+        rkey = block_uri.split("/")[-1]
+        client.app.bsky.graph.block.delete(client.me.did, rkey)
+        print(f"✅ Unblocked @{profile.handle}")
+    except Exception as e:
+        print(f"Unblock failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_mute(args):
+    client = get_client()
+
+    handle = args.handle.lstrip("@")
+    if "." not in handle:
+        handle = f"{handle}.bsky.social"
+
+    try:
+        profile = client.get_profile(handle)
+        client.mute(profile.did)
+        print(f"🔇 Muted @{profile.handle}")
+    except Exception as e:
+        print(f"Mute failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_unmute(args):
+    client = get_client()
+
+    handle = args.handle.lstrip("@")
+    if "." not in handle:
+        handle = f"{handle}.bsky.social"
+
+    try:
+        profile = client.get_profile(handle)
+        client.unmute(profile.did)
+        print(f"🔊 Unmuted @{profile.handle}")
+    except Exception as e:
+        print(f"Unmute failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Bluesky CLI")
     parser.add_argument("-v", "--version", action="version", version=f"bsky {VERSION}")
@@ -831,6 +955,14 @@ def main():
     # post
     post_p = subparsers.add_parser("post", aliases=["p"], help="Create a post")
     post_p.add_argument("text", help="Post text")
+    post_p.add_argument(
+        "--image",
+        help="Path to image file to attach",
+    )
+    post_p.add_argument(
+        "--alt",
+        help="Alt text for image (required with --image)",
+    )
     post_p.add_argument(
         "--dry-run",
         action="store_true",
@@ -917,6 +1049,22 @@ def main():
     unfollow_p = subparsers.add_parser("unfollow", help="Unfollow a user")
     unfollow_p.add_argument("handle", help="Handle to unfollow")
 
+    # block
+    block_p = subparsers.add_parser("block", help="Block a user")
+    block_p.add_argument("handle", help="Handle to block")
+
+    # unblock
+    unblock_p = subparsers.add_parser("unblock", help="Unblock a user")
+    unblock_p.add_argument("handle", help="Handle to unblock")
+
+    # mute
+    mute_p = subparsers.add_parser("mute", help="Mute a user")
+    mute_p.add_argument("handle", help="Handle to mute")
+
+    # unmute
+    unmute_p = subparsers.add_parser("unmute", help="Unmute a user")
+    unmute_p.add_argument("handle", help="Handle to unmute")
+
     args = parser.parse_args()
 
     commands = {
@@ -953,6 +1101,10 @@ def main():
         "unrt": cmd_unrepost,
         "follow": cmd_follow,
         "unfollow": cmd_unfollow,
+        "block": cmd_block,
+        "unblock": cmd_unblock,
+        "mute": cmd_mute,
+        "unmute": cmd_unmute,
     }
 
     if args.command in commands:

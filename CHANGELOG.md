@@ -2,6 +2,19 @@
 
 All notable changes to the bsky CLI skill.
 
+## [1.5.0] - 2026-02-01
+
+### Added
+- `bsky block <handle>` — Block a user
+- `bsky unblock <handle>` — Unblock a user
+- `bsky mute <handle>` — Mute a user
+- `bsky unmute <handle>` — Unmute a user
+- `bsky post --image <path> --alt "description"` — Post with image attachment
+
+### Changed
+- Complete moderation support (block, mute)
+- Image posting support (max 1MB, requires alt text)
+
 ## [1.4.0] - 2026-02-01
 
 ### Added
