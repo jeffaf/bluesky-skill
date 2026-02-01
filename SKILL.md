@@ -17,12 +17,26 @@ Full-featured CLI for Bluesky/AT Protocol.
 
 ## Setup
 
-First-time setup requires an app password:
-1. Go to bsky.app → Settings → Privacy and Security → App Passwords
-2. Create a new app password
-3. Run: `bsky login --handle yourhandle.bsky.social --password xxxx-xxxx-xxxx-xxxx`
+If user isn't logged in (`bsky whoami` shows "Not logged in"), guide them through setup:
 
-**Security:** Password is NOT stored — only a session token that auto-refreshes.
+### Getting an App Password
+
+Tell the user:
+> Go to bsky.app → click your avatar → Settings → Privacy and Security → App Passwords → Add App Password. Name it "OpenClaw" and copy the password (like `xxxx-xxxx-xxxx-xxxx`). You'll only see it once!
+
+### Logging In
+
+Once they have the app password, run:
+```bash
+bsky login --handle THEIR_HANDLE.bsky.social --password THEIR_APP_PASSWORD
+```
+
+Example:
+```bash
+bsky login --handle alice.bsky.social --password abcd-1234-efgh-5678
+```
+
+**Security:** Password is used once to get a session token, then immediately discarded. Never stored on disk. Session auto-refreshes.
 
 ## Quick Reference
 

@@ -23,14 +23,34 @@ A full-featured command-line interface for [Bluesky](https://bsky.app) (AT Proto
 
 ## 🚀 Quick Start
 
+### Step 1: Get an App Password from Bluesky
+
+1. Open [bsky.app](https://bsky.app) and log in
+2. Click your avatar → **Settings**
+3. Go to **Privacy and Security** → **App Passwords**
+4. Click **Add App Password**
+5. Name it something like "CLI" or "OpenClaw"
+6. Copy the password (looks like `xxxx-xxxx-xxxx-xxxx`)
+
+> ⚠️ **Save this password somewhere safe** — Bluesky only shows it once!
+
+### Step 2: Login via CLI
+
+Tell your OpenClaw agent:
+> "Log me into Bluesky. My handle is `yourname.bsky.social` and my app password is `xxxx-xxxx-xxxx-xxxx`"
+
+Or run directly:
 ```bash
-# 1. Get an app password from bsky.app → Settings → App Passwords
+bsky login --handle yourname.bsky.social --password xxxx-xxxx-xxxx-xxxx
+```
 
-# 2. Login (password is used once, never stored)
-bsky login --handle you.bsky.social --password xxxx-xxxx-xxxx-xxxx
+**Your password is used once to get a session token, then immediately discarded. It's never stored.**
 
-# 3. Start posting!
-bsky post "Hello from the command line! 🦋"
+### Step 3: Verify & Start Posting
+
+```bash
+bsky whoami                              # Confirm you're logged in
+bsky post "Hello from the command line! 🦋"  # Your first post!
 ```
 
 ## 📖 Usage
