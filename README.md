@@ -2,7 +2,7 @@
 
 An OpenClaw skill for interacting with Bluesky (AT Protocol) from the command line.
 
-**Version:** 1.3.0
+**Version:** 1.4.0
 
 ## Features
 
@@ -10,7 +10,10 @@ An OpenClaw skill for interacting with Bluesky (AT Protocol) from the command li
 - **Post** - Create posts with auto-linked URLs and @mentions
 - **Reply** - Reply to posts (NEW in 1.3)
 - **Quote** - Quote-post with your commentary (NEW in 1.3)
-- **Thread** - View full conversation context (NEW in 1.3)
+- **Thread** - View full conversation context
+- **Like/Unlike** - Engage with posts (NEW in 1.4)
+- **Repost** - Boost posts (NEW in 1.4)
+- **Follow/Unfollow** - Manage follows (NEW in 1.4)
 - **Search** - Search posts across Bluesky
 - **Notifications** - Check likes, reposts, follows, mentions, quotes
 - **Profile** - Look up user profiles
@@ -88,6 +91,27 @@ bsky thread <post-url>                             # View full conversation
 bsky thread <url> --depth 10                       # Fetch more replies
 bsky thread <url> --json                           # Output as JSON
 bsky th <url>                                      # Alias
+```
+
+### Like / Unlike
+```bash
+bsky like <post-url>                               # Like a post
+bsky unlike <post-url>                             # Remove like
+```
+
+### Repost
+```bash
+bsky repost <post-url>                             # Repost/boost
+bsky unrepost <post-url>                           # Remove repost
+bsky rt <url>                                      # Alias
+bsky boost <url>                                   # Alias
+```
+
+### Follow / Unfollow
+```bash
+bsky follow @someone.bsky.social                   # Follow user
+bsky follow someone                                # Auto-appends .bsky.social
+bsky unfollow @someone.bsky.social                 # Unfollow user
 ```
 
 ### Delete

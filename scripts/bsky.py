@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 try:
     from atproto import Client, client_utils, models
@@ -647,6 +647,160 @@ def cmd_notifications(args):
             print(f"{icon} {reason} from @{author} · {time_str}")
 
 
+def cmd_like(args):
+    client = get_client()
+
+    try:
+        post = resolve_post(client, args.uri)
+    except Exception as e:
+        print(f"Error resolving post: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        client.like(uri=post.uri, cid=post.cid)
+        print(
+            f"❤️ Liked: https://bsky.app/profile/{post.author.handle}/post/{post.uri.split('/')[-1]}"
+        )
+    except Exception as e:
+        print(f"Like failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_unlike(args):
+    client = get_client()
+
+    try:
+        post = resolve_post(client, args.uri)
+    except Exception as e:
+        print(f"Error resolving post: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        # Get the post with viewer state to find like URI
+        posts_response = client.get_posts([post.uri])
+        if not posts_response.posts:
+            print("Post not found", file=sys.stderr)
+            sys.exit(1)
+
+        post_data = posts_response.posts[0]
+        if (
+            not hasattr(post_data, "viewer")
+            or not post_data.viewer
+            or not post_data.viewer.like
+        ):
+            print("You haven't liked this post", file=sys.stderr)
+            sys.exit(1)
+
+        like_uri = post_data.viewer.like
+        rkey = like_uri.split("/")[-1]
+        client.app.bsky.feed.like.delete(client.me.did, rkey)
+        print(
+            f"💔 Unliked: https://bsky.app/profile/{post.author.handle}/post/{post.uri.split('/')[-1]}"
+        )
+    except Exception as e:
+        print(f"Unlike failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_repost(args):
+    client = get_client()
+
+    try:
+        post = resolve_post(client, args.uri)
+    except Exception as e:
+        print(f"Error resolving post: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        client.repost(uri=post.uri, cid=post.cid)
+        print(
+            f"🔁 Reposted: https://bsky.app/profile/{post.author.handle}/post/{post.uri.split('/')[-1]}"
+        )
+    except Exception as e:
+        print(f"Repost failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_unrepost(args):
+    client = get_client()
+
+    try:
+        post = resolve_post(client, args.uri)
+    except Exception as e:
+        print(f"Error resolving post: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        # Get the repost URI from the post's viewer state
+        posts_response = client.get_posts([post.uri])
+        if not posts_response.posts:
+            print("Post not found", file=sys.stderr)
+            sys.exit(1)
+
+        post_data = posts_response.posts[0]
+        if (
+            not hasattr(post_data, "viewer")
+            or not post_data.viewer
+            or not post_data.viewer.repost
+        ):
+            print("You haven't reposted this post", file=sys.stderr)
+            sys.exit(1)
+
+        repost_uri = post_data.viewer.repost
+        rkey = repost_uri.split("/")[-1]
+        client.app.bsky.feed.repost.delete(client.me.did, rkey)
+        print(
+            f"🔄 Unreposted: https://bsky.app/profile/{post.author.handle}/post/{post.uri.split('/')[-1]}"
+        )
+    except Exception as e:
+        print(f"Unrepost failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_follow(args):
+    client = get_client()
+
+    handle = args.handle.lstrip("@")
+    if "." not in handle:
+        handle = f"{handle}.bsky.social"
+
+    try:
+        profile = client.get_profile(handle)
+        client.follow(profile.did)
+        print(f"👤 Following @{profile.handle}")
+    except Exception as e:
+        print(f"Follow failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_unfollow(args):
+    client = get_client()
+
+    handle = args.handle.lstrip("@")
+    if "." not in handle:
+        handle = f"{handle}.bsky.social"
+
+    try:
+        profile = client.get_profile(handle)
+
+        # Check if following and get the follow record URI
+        if (
+            not hasattr(profile, "viewer")
+            or not profile.viewer
+            or not profile.viewer.following
+        ):
+            print(f"You're not following @{profile.handle}", file=sys.stderr)
+            sys.exit(1)
+
+        follow_uri = profile.viewer.following
+        rkey = follow_uri.split("/")[-1]
+        client.app.bsky.graph.follow.delete(client.me.did, rkey)
+        print(f"👋 Unfollowed @{profile.handle}")
+    except Exception as e:
+        print(f"Unfollow failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Bluesky CLI")
     parser.add_argument("-v", "--version", action="version", version=f"bsky {VERSION}")
@@ -737,6 +891,32 @@ def main():
     )
     notif_p.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # like
+    like_p = subparsers.add_parser("like", help="Like a post")
+    like_p.add_argument("uri", help="Post URI or URL to like")
+
+    # unlike
+    unlike_p = subparsers.add_parser("unlike", help="Unlike a post")
+    unlike_p.add_argument("uri", help="Post URI or URL to unlike")
+
+    # repost
+    repost_p = subparsers.add_parser("repost", aliases=["boost", "rt"], help="Repost")
+    repost_p.add_argument("uri", help="Post URI or URL to repost")
+
+    # unrepost
+    unrepost_p = subparsers.add_parser(
+        "unrepost", aliases=["unboost", "unrt"], help="Remove repost"
+    )
+    unrepost_p.add_argument("uri", help="Post URI or URL to unrepost")
+
+    # follow
+    follow_p = subparsers.add_parser("follow", help="Follow a user")
+    follow_p.add_argument("handle", help="Handle to follow")
+
+    # unfollow
+    unfollow_p = subparsers.add_parser("unfollow", help="Unfollow a user")
+    unfollow_p.add_argument("handle", help="Handle to unfollow")
+
     args = parser.parse_args()
 
     commands = {
@@ -763,6 +943,16 @@ def main():
         "notifications": cmd_notifications,
         "notif": cmd_notifications,
         "n": cmd_notifications,
+        "like": cmd_like,
+        "unlike": cmd_unlike,
+        "repost": cmd_repost,
+        "boost": cmd_repost,
+        "rt": cmd_repost,
+        "unrepost": cmd_unrepost,
+        "unboost": cmd_unrepost,
+        "unrt": cmd_unrepost,
+        "follow": cmd_follow,
+        "unfollow": cmd_unfollow,
     }
 
     if args.command in commands:

@@ -2,6 +2,19 @@
 
 All notable changes to the bsky CLI skill.
 
+## [1.4.0] - 2026-02-01
+
+### Added
+- `bsky like <uri>` — Like a post
+- `bsky unlike <uri>` — Remove like
+- `bsky repost <uri>` — Repost/boost (aliases: `boost`, `rt`)
+- `bsky unrepost <uri>` — Remove repost (aliases: `unboost`, `unrt`)
+- `bsky follow <handle>` — Follow a user
+- `bsky unfollow <handle>` — Unfollow a user
+
+### Changed
+- Full engagement primitive support — can now like, repost, and follow
+
 ## [1.3.0] - 2026-02-01
 
 ### Added
