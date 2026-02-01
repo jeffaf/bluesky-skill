@@ -76,25 +76,25 @@ def parse_post_uri(uri_or_url):
     """Convert bsky.app URL or at:// URI to at:// URI format."""
     if uri_or_url.startswith("at://"):
         return uri_or_url
-    
+
     # Parse bsky.app URL: https://bsky.app/profile/handle/post/id
     match = re.match(r"https?://bsky\.app/profile/([^/]+)/post/([^/\?]+)", uri_or_url)
     if match:
         handle, post_id = match.groups()
         # We need to resolve handle to DID - will do this in the command
         return {"handle": handle, "post_id": post_id}
-    
+
     # Might just be a post ID
     if "/" not in uri_or_url and not uri_or_url.startswith("at://"):
         return {"post_id": uri_or_url}
-    
+
     raise ValueError(f"Cannot parse post reference: {uri_or_url}")
 
 
 def resolve_post(client, uri_or_url):
     """Resolve a post URI/URL to get full post details including CID."""
     parsed = parse_post_uri(uri_or_url)
-    
+
     if isinstance(parsed, str):
         # Already an at:// URI
         uri = parsed
@@ -108,18 +108,18 @@ def resolve_post(client, uri_or_url):
     else:
         # Just post_id, use current user
         uri = f"at://{client.me.did}/app.bsky.feed.post/{parsed['post_id']}"
-    
+
     # Fetch the post to get CID
     response = client.get_posts([uri])
     if not response.posts:
         raise ValueError(f"Post not found: {uri}")
-    
+
     return response.posts[0]
 
 
 def get_thread_root(post):
     """Get the root of a thread from a post."""
-    if hasattr(post.record, 'reply') and post.record.reply:
+    if hasattr(post.record, "reply") and post.record.reply:
         return post.record.reply.root
     # This post is the root
     return models.ComAtprotoRepoStrongRef.Main(uri=post.uri, cid=post.cid)
@@ -186,8 +186,10 @@ def format_post(post, include_link=True):
         f"  ❤️ {likes}  🔁 {reposts}  💬 {replies}",
     ]
     if include_link:
-        lines.append(f"  🔗 https://bsky.app/profile/{author}/post/{post.uri.split('/')[-1]}")
-    
+        lines.append(
+            f"  🔗 https://bsky.app/profile/{author}/post/{post.uri.split('/')[-1]}"
+        )
+
     return "\n".join(lines)
 
 
@@ -199,10 +201,12 @@ def post_to_dict(post):
         "author": {
             "handle": post.author.handle,
             "did": post.author.did,
-            "displayName": getattr(post.author, 'display_name', None),
+            "displayName": getattr(post.author, "display_name", None),
         },
         "text": post.record.text if hasattr(post.record, "text") else "",
-        "createdAt": post.record.created_at if hasattr(post.record, "created_at") else "",
+        "createdAt": post.record.created_at
+        if hasattr(post.record, "created_at")
+        else "",
         "likes": post.like_count or 0,
         "reposts": post.repost_count or 0,
         "replies": post.reply_count or 0,
@@ -228,7 +232,7 @@ def build_post_with_facets(client, text):
     """Build a post with proper facets for URLs and mentions."""
     url_pattern = r"(https?://[^\s]+)"
     urls = re.findall(url_pattern, text)
-    
+
     mention_pattern = r"@([a-zA-Z0-9._-]+)"
     mentions = re.findall(mention_pattern, text)
 
@@ -305,7 +309,7 @@ def cmd_post(args):
 
     client = get_client()
     built = build_post_with_facets(client, text)
-    
+
     if isinstance(built, client_utils.TextBuilder):
         response = client.send_post(built)
     else:
@@ -337,7 +341,7 @@ def cmd_reply(args):
         return
 
     client = get_client()
-    
+
     # Resolve the parent post
     try:
         parent_post = resolve_post(client, args.uri)
@@ -348,19 +352,15 @@ def cmd_reply(args):
     # Get thread root
     root_ref = get_thread_root(parent_post)
     parent_ref = models.ComAtprotoRepoStrongRef.Main(
-        uri=parent_post.uri, 
-        cid=parent_post.cid
+        uri=parent_post.uri, cid=parent_post.cid
     )
 
     # Build reply reference
-    reply_ref = models.AppBskyFeedPost.ReplyRef(
-        root=root_ref,
-        parent=parent_ref
-    )
+    reply_ref = models.AppBskyFeedPost.ReplyRef(root=root_ref, parent=parent_ref)
 
     # Build post with facets
     built = build_post_with_facets(client, text)
-    
+
     if isinstance(built, client_utils.TextBuilder):
         response = client.send_post(built, reply_to=reply_ref)
     else:
@@ -392,7 +392,7 @@ def cmd_quote(args):
         return
 
     client = get_client()
-    
+
     # Resolve the quoted post
     try:
         quoted_post = resolve_post(client, args.uri)
@@ -403,14 +403,13 @@ def cmd_quote(args):
     # Create embed for quote
     embed = models.AppBskyEmbedRecord.Main(
         record=models.ComAtprotoRepoStrongRef.Main(
-            uri=quoted_post.uri,
-            cid=quoted_post.cid
+            uri=quoted_post.uri, cid=quoted_post.cid
         )
     )
 
     # Build post with facets
     built = build_post_with_facets(client, text)
-    
+
     if isinstance(built, client_utils.TextBuilder):
         response = client.send_post(built, embed=embed)
     else:
@@ -423,7 +422,7 @@ def cmd_quote(args):
 
 def cmd_thread(args):
     client = get_client()
-    
+
     # Resolve the post URI
     try:
         if args.uri.startswith("at://"):
@@ -437,7 +436,7 @@ def cmd_thread(args):
 
     # Get thread
     response = client.get_post_thread(uri, depth=args.depth)
-    
+
     if not response.thread:
         print("Thread not found")
         return
@@ -445,15 +444,15 @@ def cmd_thread(args):
     def print_thread_post(thread_item, indent=0):
         """Recursively print thread posts."""
         prefix = "  " * indent
-        
-        if hasattr(thread_item, 'post'):
+
+        if hasattr(thread_item, "post"):
             post = thread_item.post
             author = post.author.handle
             text = post.record.text if hasattr(post.record, "text") else ""
             likes = post.like_count or 0
             reposts = post.repost_count or 0
             replies = post.reply_count or 0
-            
+
             try:
                 created = post.record.created_at
                 dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
@@ -465,27 +464,31 @@ def cmd_thread(args):
                 return post_to_dict(post)
 
             print(f"{prefix}┌─ @{author} · {time_str}")
-            for line in text.split('\n'):
+            for line in text.split("\n"):
                 print(f"{prefix}│  {line[:200]}")
             print(f"{prefix}│  ❤️ {likes}  🔁 {reposts}  💬 {replies}")
-            print(f"{prefix}└─ 🔗 https://bsky.app/profile/{author}/post/{post.uri.split('/')[-1]}")
+            print(
+                f"{prefix}└─ 🔗 https://bsky.app/profile/{author}/post/{post.uri.split('/')[-1]}"
+            )
             print()
 
             # Print replies
-            if hasattr(thread_item, 'replies') and thread_item.replies:
+            if hasattr(thread_item, "replies") and thread_item.replies:
                 for reply in thread_item.replies:
                     print_thread_post(reply, indent + 1)
-    
+
     # Print parent chain first (if exists)
-    if hasattr(response.thread, 'parent') and response.thread.parent:
+    if hasattr(response.thread, "parent") and response.thread.parent:
+
         def print_parents(parent, depth=0):
             if depth > 10:  # Safety limit
                 return
-            if hasattr(parent, 'parent') and parent.parent:
+            if hasattr(parent, "parent") and parent.parent:
                 print_parents(parent.parent, depth + 1)
-            if hasattr(parent, 'post'):
+            if hasattr(parent, "post"):
                 print("↑ Parent:")
                 print_thread_post(parent, 0)
+
         print_parents(response.thread.parent)
         print("─" * 40)
         print("📍 This post:")
@@ -493,12 +496,14 @@ def cmd_thread(args):
 
     if args.json:
         posts = []
+
         def collect_posts(item):
-            if hasattr(item, 'post'):
+            if hasattr(item, "post"):
                 posts.append(post_to_dict(item.post))
-            if hasattr(item, 'replies') and item.replies:
+            if hasattr(item, "replies") and item.replies:
                 for reply in item.replies:
                     collect_posts(reply)
+
         collect_posts(response.thread)
         print(json.dumps(posts, indent=2))
         return
@@ -537,7 +542,7 @@ def cmd_profile(args):
         handle = f"{handle}.bsky.social"
 
     profile = client.get_profile(handle)
-    
+
     if args.json:
         data = {
             "handle": profile.handle,
@@ -592,16 +597,18 @@ def cmd_notifications(args):
     if args.json:
         notifs = []
         for notif in response.notifications:
-            notifs.append({
-                "reason": notif.reason,
-                "author": {
-                    "handle": notif.author.handle,
-                    "did": notif.author.did,
-                },
-                "indexedAt": notif.indexed_at,
-                "uri": notif.uri,
-                "isRead": notif.is_read,
-            })
+            notifs.append(
+                {
+                    "reason": notif.reason,
+                    "author": {
+                        "handle": notif.author.handle,
+                        "did": notif.author.did,
+                    },
+                    "indexedAt": notif.indexed_at,
+                    "uri": notif.uri,
+                    "isRead": notif.is_read,
+                }
+            )
         print(json.dumps(notifs, indent=2))
         return
 
