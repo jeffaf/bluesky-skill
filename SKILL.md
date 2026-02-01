@@ -1,13 +1,14 @@
 ---
 name: bluesky
 version: 1.5.0
-description: Full-featured Bluesky/AT Protocol CLI. Post, reply, quote, like, repost, follow, block, mute, search, and view threads. Use when user asks to interact with Bluesky in any way.
+description: "Complete Bluesky CLI: post, reply, like, repost, follow, block, mute, search, threads, images. Everything you need to engage on Bluesky from the terminal."
 homepage: https://bsky.app
 metadata:
   openclaw:
     emoji: "🦋"
     requires:
       bins: ["python3"]
+    tags: ["social", "bluesky", "at-protocol", "cli"]
 ---
 
 # Bluesky CLI
