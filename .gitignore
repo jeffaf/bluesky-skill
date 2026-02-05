@@ -1,6 +1,4 @@
 # Dev/test files
-ROADMAP.md
-TESTING.md
 scripts/test-auth.sh
 
 # Python
