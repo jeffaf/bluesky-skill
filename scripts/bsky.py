@@ -336,15 +336,24 @@ def cmd_post(args):
 
     client = get_client()
 
+    # Build facets for URLs and mentions
+    built = build_post_with_facets(client, text)
+
     # Post with image
     if image_data:
-        response = client.send_image(
-            text=text,
-            image=image_data,
-            image_alt=args.alt,
-        )
+        if isinstance(built, client_utils.TextBuilder):
+            response = client.send_image(
+                text=built,
+                image=image_data,
+                image_alt=args.alt,
+            )
+        else:
+            response = client.send_image(
+                text=text,
+                image=image_data,
+                image_alt=args.alt,
+            )
     else:
-        built = build_post_with_facets(client, text)
         if isinstance(built, client_utils.TextBuilder):
             response = client.send_post(built)
         else:
