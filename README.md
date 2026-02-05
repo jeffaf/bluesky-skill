@@ -123,7 +123,7 @@ bsky notifications --json
 ### For OpenClaw
 
 ```bash
-clawdhub install bluesky
+clawhub install bluesky
 ```
 
 ### Manual
