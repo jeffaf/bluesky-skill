@@ -15,6 +15,22 @@ metadata:
 
 Full-featured CLI for Bluesky/AT Protocol.
 
+## Agent Instructions
+
+**First: Check if logged in**
+```bash
+bsky whoami
+```
+
+- If shows handle → ready to use commands below
+- If "Not logged in" → guide user through Setup section
+
+**Common tasks:**
+- "Post to Bluesky" → `bsky post "text"`
+- "Check my timeline" → `bsky timeline`
+- "Like this post" → `bsky like <url>`
+- "Follow someone" → `bsky follow @handle`
+
 ## Setup
 
 If user isn't logged in (`bsky whoami` shows "Not logged in"), guide them through setup:
