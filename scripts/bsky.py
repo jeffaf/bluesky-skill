@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-VERSION = "1.5.0"
+VERSION = "1.5.2"
 
 try:
     from atproto import Client, client_utils, models
@@ -20,6 +20,12 @@ except ImportError:
 CONFIG_PATH = Path.home() / ".config" / "bsky" / "config.json"
 
 
+def normalize_handle(handle):
+    """Strip leading @ and append .bsky.social if no domain specified."""
+    handle = handle.lstrip("@")
+    return handle
+
+
 def load_config():
     if CONFIG_PATH.exists():
         return json.loads(CONFIG_PATH.read_text())
@@ -27,9 +33,13 @@ def load_config():
 
 
 def save_config(config):
-    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(json.dumps(config, indent=2))
-    os.chmod(CONFIG_PATH, 0o600)
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # Write with restrictive permissions from the start
+    fd = os.open(str(CONFIG_PATH), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, json.dumps(config, indent=2).encode())
+    finally:
+        os.close(fd)
 
 
 def get_client():
@@ -100,9 +110,7 @@ def resolve_post(client, uri_or_url):
         uri = parsed
     elif "handle" in parsed:
         # Need to resolve handle to DID first
-        handle = parsed["handle"]
-        if "." not in handle:
-            handle = f"{handle}.bsky.social"
+        handle = normalize_handle(parsed["handle"])
         profile = client.get_profile(handle)
         uri = f"at://{profile.did}/app.bsky.feed.post/{parsed['post_id']}"
     else:
@@ -127,8 +135,12 @@ def get_thread_root(post):
 
 def cmd_login(args):
     try:
+        password = args.password or os.environ.get("BSKY_PASSWORD")
+        if not password:
+            import getpass
+            password = getpass.getpass("App password: ")
         client = Client()
-        client.login(args.handle, args.password)
+        client.login(args.handle, password)
         # Store session string only - password never saved to disk
         config = {
             "handle": client.me.handle,
@@ -159,6 +171,13 @@ def cmd_whoami(args):
     config = load_config()
     if config.get("handle"):
         client = get_client()
+        if args.json:
+            data = {
+                "handle": client.me.handle,
+                "did": client.me.did,
+            }
+            print(json.dumps(data, indent=2))
+            return
         print(f"Handle: {client.me.handle}")
         print(f"DID: {client.me.did}")
     else:
@@ -249,12 +268,12 @@ def build_post_with_facets(client, text):
     # Resolve mention handles to DIDs
     mention_dids = {}
     for handle in mentions:
-        full_handle = handle if "." in handle else f"{handle}.bsky.social"
+        full_handle = normalize_handle(handle)
         try:
             profile = client.get_profile(full_handle)
             mention_dids[handle] = profile.did
         except Exception:
-            pass
+            print(f"Warning: could not resolve @{handle}", file=sys.stderr)
 
     for match in re.finditer(combined_pattern, text):
         if match.start() > last_end:
@@ -361,7 +380,11 @@ def cmd_post(args):
 
     uri = response.uri
     post_id = uri.split("/")[-1]
-    print(f"Posted: https://bsky.app/profile/{client.me.handle}/post/{post_id}")
+    url = f"https://bsky.app/profile/{client.me.handle}/post/{post_id}"
+    if args.quiet:
+        print(url)
+    else:
+        print(f"Posted: {url}")
 
 
 def cmd_reply(args):
@@ -412,7 +435,11 @@ def cmd_reply(args):
 
     uri = response.uri
     post_id = uri.split("/")[-1]
-    print(f"Replied: https://bsky.app/profile/{client.me.handle}/post/{post_id}")
+    url = f"https://bsky.app/profile/{client.me.handle}/post/{post_id}"
+    if args.quiet:
+        print(url)
+    else:
+        print(f"Replied: {url}")
 
 
 def cmd_quote(args):
@@ -461,7 +488,11 @@ def cmd_quote(args):
 
     uri = response.uri
     post_id = uri.split("/")[-1]
-    print(f"Quoted: https://bsky.app/profile/{client.me.handle}/post/{post_id}")
+    url = f"https://bsky.app/profile/{client.me.handle}/post/{post_id}"
+    if args.quiet:
+        print(url)
+    else:
+        print(f"Quoted: {url}")
 
 
 def cmd_thread(args):
@@ -579,11 +610,7 @@ def cmd_delete(args):
 
 def cmd_profile(args):
     client = get_client()
-    handle = args.handle.lstrip("@") if args.handle else client.me.handle
-
-    # Auto-append .bsky.social if no domain specified
-    if handle and "." not in handle:
-        handle = f"{handle}.bsky.social"
+    handle = normalize_handle(args.handle) if args.handle else client.me.handle
 
     profile = client.get_profile(handle)
 
@@ -596,6 +623,8 @@ def cmd_profile(args):
             "followersCount": profile.followers_count,
             "followsCount": profile.follows_count,
             "postsCount": profile.posts_count,
+            "avatar": getattr(profile, "avatar", None),
+            "banner": getattr(profile, "banner", None),
         }
         print(json.dumps(data, indent=2))
         return
@@ -804,9 +833,7 @@ def cmd_unrepost(args):
 def cmd_follow(args):
     client = get_client()
 
-    handle = args.handle.lstrip("@")
-    if "." not in handle:
-        handle = f"{handle}.bsky.social"
+    handle = normalize_handle(args.handle)
 
     try:
         profile = client.get_profile(handle)
@@ -820,9 +847,7 @@ def cmd_follow(args):
 def cmd_unfollow(args):
     client = get_client()
 
-    handle = args.handle.lstrip("@")
-    if "." not in handle:
-        handle = f"{handle}.bsky.social"
+    handle = normalize_handle(args.handle)
 
     try:
         profile = client.get_profile(handle)
@@ -848,9 +873,7 @@ def cmd_unfollow(args):
 def cmd_block(args):
     client = get_client()
 
-    handle = args.handle.lstrip("@")
-    if "." not in handle:
-        handle = f"{handle}.bsky.social"
+    handle = normalize_handle(args.handle)
 
     try:
         profile = client.get_profile(handle)
@@ -877,9 +900,7 @@ def cmd_block(args):
 def cmd_unblock(args):
     client = get_client()
 
-    handle = args.handle.lstrip("@")
-    if "." not in handle:
-        handle = f"{handle}.bsky.social"
+    handle = normalize_handle(args.handle)
 
     try:
         profile = client.get_profile(handle)
@@ -905,9 +926,7 @@ def cmd_unblock(args):
 def cmd_mute(args):
     client = get_client()
 
-    handle = args.handle.lstrip("@")
-    if "." not in handle:
-        handle = f"{handle}.bsky.social"
+    handle = normalize_handle(args.handle)
 
     try:
         profile = client.get_profile(handle)
@@ -921,9 +940,7 @@ def cmd_mute(args):
 def cmd_unmute(args):
     client = get_client()
 
-    handle = args.handle.lstrip("@")
-    if "." not in handle:
-        handle = f"{handle}.bsky.social"
+    handle = normalize_handle(args.handle)
 
     try:
         profile = client.get_profile(handle)
@@ -932,6 +949,28 @@ def cmd_unmute(args):
     except Exception as e:
         print(f"Unmute failed: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def cmd_stats(args):
+    client = get_client()
+    handle = normalize_handle(args.handle) if args.handle else client.me.handle
+
+    profile = client.get_profile(handle)
+
+    if args.json:
+        data = {
+            "handle": profile.handle,
+            "postsCount": profile.posts_count,
+            "followersCount": profile.followers_count,
+            "followsCount": profile.follows_count,
+        }
+        print(json.dumps(data, indent=2))
+        return
+
+    print(f"@{profile.handle}")
+    print(f"📝 Posts: {profile.posts_count}")
+    print(f"👥 Followers: {profile.followers_count}")
+    print(f"👤 Following: {profile.follows_count}")
 
 
 def main():
@@ -945,14 +984,15 @@ def main():
         "--handle", required=True, help="Your handle (e.g. user.bsky.social)"
     )
     login_p.add_argument(
-        "--password", required=True, help="App password (not your main password)"
+        "--password", required=False, help="App password (or set BSKY_PASSWORD env var, or omit to be prompted)"
     )
 
     # logout
     subparsers.add_parser("logout", help="Log out and clear session")
 
     # whoami
-    subparsers.add_parser("whoami", help="Show current user")
+    whoami_p = subparsers.add_parser("whoami", help="Show current user")
+    whoami_p.add_argument("--json", action="store_true", help="Output as JSON")
 
     # timeline
     tl_p = subparsers.add_parser(
@@ -977,6 +1017,11 @@ def main():
         action="store_true",
         help="Show what would be posted without posting",
     )
+    post_p.add_argument(
+        "--quiet", "-q",
+        action="store_true",
+        help="Only print the post URL",
+    )
 
     # reply
     reply_p = subparsers.add_parser("reply", aliases=["r"], help="Reply to a post")
@@ -987,6 +1032,11 @@ def main():
         action="store_true",
         help="Show what would be posted without posting",
     )
+    reply_p.add_argument(
+        "--quiet", "-q",
+        action="store_true",
+        help="Only print the post URL",
+    )
 
     # quote
     quote_p = subparsers.add_parser("quote", aliases=["qt"], help="Quote a post")
@@ -996,6 +1046,11 @@ def main():
         "--dry-run",
         action="store_true",
         help="Show what would be posted without posting",
+    )
+    quote_p.add_argument(
+        "--quiet", "-q",
+        action="store_true",
+        help="Only print the post URL",
     )
 
     # thread
@@ -1074,6 +1129,13 @@ def main():
     unmute_p = subparsers.add_parser("unmute", help="Unmute a user")
     unmute_p.add_argument("handle", help="Handle to unmute")
 
+    # stats
+    stats_p = subparsers.add_parser("stats", help="Show account stats")
+    stats_p.add_argument(
+        "handle", nargs="?", help="Handle to look up (default: self)"
+    )
+    stats_p.add_argument("--json", action="store_true", help="Output as JSON")
+
     args = parser.parse_args()
 
     commands = {
@@ -1114,6 +1176,7 @@ def main():
         "unblock": cmd_unblock,
         "mute": cmd_mute,
         "unmute": cmd_unmute,
+        "stats": cmd_stats,
     }
 
     if args.command in commands:
