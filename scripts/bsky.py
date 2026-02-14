@@ -138,6 +138,7 @@ def cmd_login(args):
         password = args.password or os.environ.get("BSKY_PASSWORD")
         if not password:
             import getpass
+
             password = getpass.getpass("App password: ")
         client = Client()
         client.login(args.handle, password)
@@ -649,6 +650,7 @@ def cmd_create_thread(args):
     total = len(texts)
     posted_urls = []
     root_ref = None
+    parent_ref = None
 
     for i, text in enumerate(texts):
         post_num = i + 1
@@ -700,7 +702,10 @@ def cmd_create_thread(args):
         except Exception as e:
             print(f"\n❌ Failed on post {post_num}/{total}: {e}", file=sys.stderr)
             if posted_urls:
-                print(f"\n✅ Successfully posted {len(posted_urls)}/{total}:", file=sys.stderr)
+                print(
+                    f"\n✅ Successfully posted {len(posted_urls)}/{total}:",
+                    file=sys.stderr,
+                )
                 for url in posted_urls:
                     print(f"  {url}", file=sys.stderr)
             sys.exit(1)
@@ -1107,7 +1112,9 @@ def main():
         "--handle", required=True, help="Your handle (e.g. user.bsky.social)"
     )
     login_p.add_argument(
-        "--password", required=False, help="App password (or set BSKY_PASSWORD env var, or omit to be prompted)"
+        "--password",
+        required=False,
+        help="App password (or set BSKY_PASSWORD env var, or omit to be prompted)",
     )
 
     # logout
@@ -1141,7 +1148,8 @@ def main():
         help="Show what would be posted without posting",
     )
     post_p.add_argument(
-        "--quiet", "-q",
+        "--quiet",
+        "-q",
         action="store_true",
         help="Only print the post URL",
     )
@@ -1156,7 +1164,8 @@ def main():
         help="Show what would be posted without posting",
     )
     reply_p.add_argument(
-        "--quiet", "-q",
+        "--quiet",
+        "-q",
         action="store_true",
         help="Only print the post URL",
     )
@@ -1171,7 +1180,8 @@ def main():
         help="Show what would be posted without posting",
     )
     quote_p.add_argument(
-        "--quiet", "-q",
+        "--quiet",
+        "-q",
         action="store_true",
         help="Only print the post URL",
     )
@@ -1189,12 +1199,8 @@ def main():
     cthread_p.add_argument(
         "texts", nargs="+", help="Post texts (each quoted separately)"
     )
-    cthread_p.add_argument(
-        "--image", help="Image for first post"
-    )
-    cthread_p.add_argument(
-        "--alt", help="Alt text for image (required with --image)"
-    )
+    cthread_p.add_argument("--image", help="Image for first post")
+    cthread_p.add_argument("--alt", help="Alt text for image (required with --image)")
     cthread_p.add_argument(
         "--dry-run", action="store_true", help="Preview thread without posting"
     )
@@ -1274,9 +1280,7 @@ def main():
 
     # stats
     stats_p = subparsers.add_parser("stats", help="Show account stats")
-    stats_p.add_argument(
-        "handle", nargs="?", help="Handle to look up (default: self)"
-    )
+    stats_p.add_argument("handle", nargs="?", help="Handle to look up (default: self)")
     stats_p.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
