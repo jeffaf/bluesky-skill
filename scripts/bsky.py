@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-VERSION = "1.5.3"
+VERSION = "1.6.0"
 
 try:
     from atproto import Client, client_utils, models
@@ -495,7 +495,7 @@ def cmd_quote(args):
         print(f"Quoted: {url}")
 
 
-def cmd_thread(args):
+def cmd_thread_view(args):
     client = get_client()
 
     # Resolve the post URI
@@ -584,6 +584,129 @@ def cmd_thread(args):
         return
 
     print_thread_post(response.thread)
+
+
+def cmd_create_thread(args):
+    """Create a thread of posts, each replying to the previous."""
+    texts = args.texts
+
+    # Validate: need at least 2 posts for a thread
+    if len(texts) < 2:
+        print("Error: Thread needs at least 2 posts", file=sys.stderr)
+        sys.exit(1)
+
+    # Validate lengths
+    for i, text in enumerate(texts, 1):
+        if not text or not text.strip():
+            print(f"Error: Post {i} is empty", file=sys.stderr)
+            sys.exit(1)
+        if len(text) > 300:
+            print(f"Error: Post {i} is {len(text)} chars (max 300)", file=sys.stderr)
+            sys.exit(1)
+
+    # Validate image args
+    if args.image and not args.alt:
+        print("Error: --alt is required when using --image", file=sys.stderr)
+        sys.exit(1)
+
+    # Load image if provided (for first post only)
+    image_data = None
+    if args.image:
+        image_path = Path(args.image).expanduser()
+        if not image_path.exists():
+            print(f"Error: Image file not found: {args.image}", file=sys.stderr)
+            sys.exit(1)
+        image_data = image_path.read_bytes()
+        if len(image_data) > 1_000_000:
+            print(
+                f"Error: Image too large ({len(image_data) / 1_000_000:.1f}MB, max 1MB)",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+    # Dry run
+    if args.dry_run:
+        print(f"=== DRY RUN: Thread with {len(texts)} posts ===")
+        for i, text in enumerate(texts, 1):
+            print(f"\n📝 Post {i}/{len(texts)} ({len(text)} chars):")
+            print(f"  {text}")
+
+            url_pattern = r"(https?://[^\s]+)"
+            urls = re.findall(url_pattern, text)
+            if urls:
+                print(f"  Links: {', '.join(urls)}")
+
+        if args.image:
+            print(f"\n🖼️ Image on post 1: {args.image}")
+            print(f"  Alt: {args.alt}")
+            if image_data:
+                print(f"  Size: {len(image_data) / 1000:.1f}KB")
+
+        print("\n=============================")
+        return
+
+    client = get_client()
+    total = len(texts)
+    posted_urls = []
+    root_ref = None
+
+    for i, text in enumerate(texts):
+        post_num = i + 1
+        try:
+            built = build_post_with_facets(client, text)
+
+            # Build reply ref (for posts after the first)
+            reply_ref = None
+            if i > 0:
+                reply_ref = models.AppBskyFeedPost.ReplyRef(
+                    root=root_ref, parent=parent_ref
+                )
+
+            # First post may have an image
+            if i == 0 and image_data:
+                if isinstance(built, client_utils.TextBuilder):
+                    response = client.send_image(
+                        text=built,
+                        image=image_data,
+                        image_alt=args.alt,
+                    )
+                else:
+                    response = client.send_image(
+                        text=text,
+                        image=image_data,
+                        image_alt=args.alt,
+                    )
+            else:
+                if isinstance(built, client_utils.TextBuilder):
+                    response = client.send_post(built, reply_to=reply_ref)
+                else:
+                    response = client.send_post(text=text, reply_to=reply_ref)
+
+            uri = response.uri
+            cid = response.cid
+            post_id = uri.split("/")[-1]
+            url = f"https://bsky.app/profile/{client.me.handle}/post/{post_id}"
+            posted_urls.append(url)
+
+            # Set root ref from first post
+            if i == 0:
+                root_ref = models.ComAtprotoRepoStrongRef.Main(uri=uri, cid=cid)
+
+            # Parent ref is always the most recent post
+            parent_ref = models.ComAtprotoRepoStrongRef.Main(uri=uri, cid=cid)
+
+            print(f"Posted {post_num}/{total}: {url}")
+
+        except Exception as e:
+            print(f"\n❌ Failed on post {post_num}/{total}: {e}", file=sys.stderr)
+            if posted_urls:
+                print(f"\n✅ Successfully posted {len(posted_urls)}/{total}:", file=sys.stderr)
+                for url in posted_urls:
+                    print(f"  {url}", file=sys.stderr)
+            sys.exit(1)
+
+    print(f"\n🧵 Thread complete! ({total} posts)")
+    print(f"🔗 {posted_urls[0]}")
 
 
 def cmd_delete(args):
@@ -1053,11 +1176,31 @@ def main():
         help="Only print the post URL",
     )
 
-    # thread
+    # thread (view)
     thread_p = subparsers.add_parser("thread", aliases=["th"], help="View a thread")
     thread_p.add_argument("uri", help="Post URI or URL")
     thread_p.add_argument("--depth", type=int, default=6, help="Reply depth to fetch")
     thread_p.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # create-thread
+    cthread_p = subparsers.add_parser(
+        "create-thread", aliases=["ct"], help="Create a thread of posts"
+    )
+    cthread_p.add_argument(
+        "texts", nargs="+", help="Post texts (each quoted separately)"
+    )
+    cthread_p.add_argument(
+        "--image", help="Image for first post"
+    )
+    cthread_p.add_argument(
+        "--alt", help="Alt text for image (required with --image)"
+    )
+    cthread_p.add_argument(
+        "--dry-run", action="store_true", help="Preview thread without posting"
+    )
+    cthread_p.add_argument(
+        "--quiet", "-q", action="store_true", help="Only print post URLs"
+    )
 
     # delete
     del_p = subparsers.add_parser("delete", aliases=["del", "rm"], help="Delete a post")
@@ -1151,8 +1294,10 @@ def main():
         "r": cmd_reply,
         "quote": cmd_quote,
         "qt": cmd_quote,
-        "thread": cmd_thread,
-        "th": cmd_thread,
+        "thread": cmd_thread_view,
+        "th": cmd_thread_view,
+        "create-thread": cmd_create_thread,
+        "ct": cmd_create_thread,
         "delete": cmd_delete,
         "del": cmd_delete,
         "rm": cmd_delete,

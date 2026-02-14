@@ -1,6 +1,6 @@
 # 🦋 Bluesky CLI
 
-[![Version](https://img.shields.io/badge/version-1.5.3-blue.svg)](https://github.com/jeffaf/bluesky-skill)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/jeffaf/bluesky-skill)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-yellow.svg)](https://python.org)
 
@@ -17,6 +17,7 @@ A full-featured command-line interface for [Bluesky](https://bsky.app) (AT Proto
 | **Social** | `follow`, `unfollow`, `profile` |
 | **Moderation** | `block`, `unblock`, `mute`, `unmute` |
 | **Discovery** | `timeline`, `search`, `notifications`, `thread` |
+| **Threading** | `create-thread` — post multi-part threads |
 | **Media** | Image attachments with alt text |
 
 **Plus:** JSON output on all read commands, dry-run mode, auto-linked URLs and @mentions.
@@ -89,6 +90,15 @@ bsky block @troll.bsky.social       # 🚫 Block
 bsky unblock @someone               # Unblock
 bsky mute @noisy.bsky.social        # 🔇 Mute
 bsky unmute @someone                # Unmute
+```
+
+### Threading
+
+```bash
+bsky create-thread "First post" "Second post" "Third post"   # Create a thread
+bsky ct "Post 1" "Post 2" "Post 3"                           # Short alias
+bsky create-thread "Intro" "Details" --dry-run                # Preview only
+bsky create-thread "Look!" "More" --image pic.jpg --alt "Photo"  # Image on first post
 ```
 
 ### Discovery

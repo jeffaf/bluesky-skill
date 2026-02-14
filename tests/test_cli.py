@@ -6,6 +6,7 @@ import subprocess
 import os
 
 SCRIPT_PATH = os.path.join(os.path.dirname(__file__), '..', 'scripts', 'bsky.py')
+VENV_PYTHON = os.path.join(os.path.dirname(__file__), '..', 'scripts', 'venv', 'bin', 'python3')
 
 
 class TestVersion:
@@ -14,7 +15,7 @@ class TestVersion:
     def test_version_flag(self):
         """bsky --version should return version string."""
         result = subprocess.run(
-            ['python3', SCRIPT_PATH, '--version'],
+            [VENV_PYTHON, SCRIPT_PATH, '--version'],
             capture_output=True,
             text=True
         )
@@ -28,7 +29,7 @@ class TestDryRun:
     def test_post_dry_run_no_auth_needed(self):
         """bsky post --dry-run should work without authentication."""
         result = subprocess.run(
-            ['python3', SCRIPT_PATH, 'post', 'Test post', '--dry-run'],
+            [VENV_PYTHON, SCRIPT_PATH, 'post', 'Test post', '--dry-run'],
             capture_output=True,
             text=True
         )
@@ -42,7 +43,7 @@ class TestInputValidation:
     def test_post_empty_text_rejected(self):
         """Empty post text should be rejected."""
         result = subprocess.run(
-            ['python3', SCRIPT_PATH, 'post', '', '--dry-run'],
+            [VENV_PYTHON, SCRIPT_PATH, 'post', '', '--dry-run'],
             capture_output=True,
             text=True
         )
@@ -53,7 +54,7 @@ class TestInputValidation:
         """Post over 300 chars should be rejected."""
         long_text = 'x' * 350
         result = subprocess.run(
-            ['python3', SCRIPT_PATH, 'post', long_text, '--dry-run'],
+            [VENV_PYTHON, SCRIPT_PATH, 'post', long_text, '--dry-run'],
             capture_output=True,
             text=True
         )
@@ -67,7 +68,7 @@ class TestHelpText:
     def test_help_flag(self):
         """bsky --help should show usage."""
         result = subprocess.run(
-            ['python3', SCRIPT_PATH, '--help'],
+            [VENV_PYTHON, SCRIPT_PATH, '--help'],
             capture_output=True,
             text=True
         )
@@ -77,7 +78,7 @@ class TestHelpText:
     def test_post_help(self):
         """bsky post --help should show post options."""
         result = subprocess.run(
-            ['python3', SCRIPT_PATH, 'post', '--help'],
+            [VENV_PYTHON, SCRIPT_PATH, 'post', '--help'],
             capture_output=True,
             text=True
         )
