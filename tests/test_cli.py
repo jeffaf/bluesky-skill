@@ -1,12 +1,17 @@
 """
 Tests for bsky CLI.
 """
-import pytest
+
 import subprocess
 import os
 
-SCRIPT_PATH = os.path.join(os.path.dirname(__file__), '..', 'scripts', 'bsky.py')
-VENV_PYTHON = os.path.join(os.path.dirname(__file__), '..', 'scripts', 'venv', 'bin', 'python3')
+import sys
+
+SCRIPT_PATH = os.path.join(os.path.dirname(__file__), "..", "scripts", "bsky.py")
+_VENV_PYTHON = os.path.join(
+    os.path.dirname(__file__), "..", "scripts", "venv", "bin", "python3"
+)
+VENV_PYTHON = _VENV_PYTHON if os.path.exists(_VENV_PYTHON) else sys.executable
 
 
 class TestVersion:
@@ -15,12 +20,10 @@ class TestVersion:
     def test_version_flag(self):
         """bsky --version should return version string."""
         result = subprocess.run(
-            [VENV_PYTHON, SCRIPT_PATH, '--version'],
-            capture_output=True,
-            text=True
+            [VENV_PYTHON, SCRIPT_PATH, "--version"], capture_output=True, text=True
         )
         assert result.returncode == 0
-        assert 'bsky' in result.stdout.lower() or '1.' in result.stdout
+        assert "bsky" in result.stdout.lower() or "1." in result.stdout
 
 
 class TestDryRun:
@@ -29,12 +32,12 @@ class TestDryRun:
     def test_post_dry_run_no_auth_needed(self):
         """bsky post --dry-run should work without authentication."""
         result = subprocess.run(
-            [VENV_PYTHON, SCRIPT_PATH, 'post', 'Test post', '--dry-run'],
+            [VENV_PYTHON, SCRIPT_PATH, "post", "Test post", "--dry-run"],
             capture_output=True,
-            text=True
+            text=True,
         )
         # Should show preview, not error about auth
-        assert 'test post' in result.stdout.lower() or 'dry' in result.stdout.lower()
+        assert "test post" in result.stdout.lower() or "dry" in result.stdout.lower()
 
 
 class TestInputValidation:
@@ -43,23 +46,31 @@ class TestInputValidation:
     def test_post_empty_text_rejected(self):
         """Empty post text should be rejected."""
         result = subprocess.run(
-            [VENV_PYTHON, SCRIPT_PATH, 'post', '', '--dry-run'],
+            [VENV_PYTHON, SCRIPT_PATH, "post", "", "--dry-run"],
             capture_output=True,
-            text=True
+            text=True,
         )
         # Should fail or warn about empty text
-        assert result.returncode != 0 or 'empty' in result.stderr.lower() or 'empty' in result.stdout.lower()
+        assert (
+            result.returncode != 0
+            or "empty" in result.stderr.lower()
+            or "empty" in result.stdout.lower()
+        )
 
     def test_post_too_long_rejected(self):
         """Post over 300 chars should be rejected."""
-        long_text = 'x' * 350
+        long_text = "x" * 350
         result = subprocess.run(
-            [VENV_PYTHON, SCRIPT_PATH, 'post', long_text, '--dry-run'],
+            [VENV_PYTHON, SCRIPT_PATH, "post", long_text, "--dry-run"],
             capture_output=True,
-            text=True
+            text=True,
         )
         # Should fail or warn about length
-        assert result.returncode != 0 or 'long' in result.stderr.lower() or 'char' in result.stdout.lower()
+        assert (
+            result.returncode != 0
+            or "long" in result.stderr.lower()
+            or "char" in result.stdout.lower()
+        )
 
 
 class TestHelpText:
@@ -68,19 +79,15 @@ class TestHelpText:
     def test_help_flag(self):
         """bsky --help should show usage."""
         result = subprocess.run(
-            [VENV_PYTHON, SCRIPT_PATH, '--help'],
-            capture_output=True,
-            text=True
+            [VENV_PYTHON, SCRIPT_PATH, "--help"], capture_output=True, text=True
         )
         assert result.returncode == 0
-        assert 'usage' in result.stdout.lower() or 'timeline' in result.stdout.lower()
+        assert "usage" in result.stdout.lower() or "timeline" in result.stdout.lower()
 
     def test_post_help(self):
         """bsky post --help should show post options."""
         result = subprocess.run(
-            [VENV_PYTHON, SCRIPT_PATH, 'post', '--help'],
-            capture_output=True,
-            text=True
+            [VENV_PYTHON, SCRIPT_PATH, "post", "--help"], capture_output=True, text=True
         )
         assert result.returncode == 0
-        assert 'dry' in result.stdout.lower() or 'post' in result.stdout.lower()
+        assert "dry" in result.stdout.lower() or "post" in result.stdout.lower()

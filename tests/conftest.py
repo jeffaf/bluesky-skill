@@ -1,12 +1,13 @@
 """
 Pytest fixtures for bsky tests.
 """
+
 import pytest
 import sys
 import os
 
 # Add scripts directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 
 @pytest.fixture
@@ -24,5 +25,5 @@ def mock_session():
         "handle": "test.bsky.social",
         "did": "did:plc:testuser123",
         "accessJwt": "fake-access-token",
-        "refreshJwt": "fake-refresh-token"
+        "refreshJwt": "fake-refresh-token",
     }
