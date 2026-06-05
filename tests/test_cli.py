@@ -91,3 +91,24 @@ class TestHelpText:
         )
         assert result.returncode == 0
         assert "dry" in result.stdout.lower() or "post" in result.stdout.lower()
+
+    def test_login_help_does_not_accept_password_argument(self):
+        """Login should use the hidden prompt, not a command-line secret."""
+        result = subprocess.run(
+            [VENV_PYTHON, SCRIPT_PATH, "login", "--help"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "--" + "password" not in result.stdout
+
+    def test_high_impact_commands_have_confirmation_flag(self):
+        """Account-changing commands should expose an explicit confirmation flag."""
+        for command in ["delete", "repost", "follow", "block", "mute"]:
+            result = subprocess.run(
+                [VENV_PYTHON, SCRIPT_PATH, command, "--help"],
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 0
+            assert "--yes" in result.stdout

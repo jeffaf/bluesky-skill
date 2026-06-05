@@ -1,7 +1,7 @@
 # 🦋 Bluesky CLI
 
-[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/jeffaf/bluesky-skill)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.6.1-blue.svg)](https://github.com/jeffaf/bluesky-skill)
+[![License](https://img.shields.io/badge/license-MIT--0-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-yellow.svg)](https://python.org)
 
 A full-featured command-line interface for [Bluesky](https://bsky.app) (AT Protocol). Post, reply, like, repost, follow, block, mute, search — everything you need to engage on Bluesky from your terminal.
@@ -31,21 +31,20 @@ A full-featured command-line interface for [Bluesky](https://bsky.app) (AT Proto
 3. Go to **Privacy and Security** → **App Passwords**
 4. Click **Add App Password**
 5. Name it something like "CLI" or "OpenClaw"
-6. Copy the password (looks like `xxxx-xxxx-xxxx-xxxx`)
+6. Keep the generated password ready for the CLI prompt
 
-> ⚠️ **Save this password somewhere safe** — Bluesky only shows it once!
+> ⚠️ **Do not paste app passwords into chat, shell history, or command-line arguments.** Bluesky only shows the password once, so use it in the hidden prompt and store/revoke it from Bluesky settings as needed.
 
 ### Step 2: Login via CLI
 
-Tell your OpenClaw agent:
-> "Log me into Bluesky. My handle is `yourname.bsky.social` and my app password is `xxxx-xxxx-xxxx-xxxx`"
-
-Or run directly:
+Run locally:
 ```bash
-bsky login --handle yourname.bsky.social --password xxxx-xxxx-xxxx-xxxx
+bsky login --handle yourname.bsky.social
 ```
 
-**Your password is used once to get a session token, then immediately discarded. It's never stored.**
+The CLI prompts for the app password without echoing it. Your password is used once to get a session token, then immediately discarded. It's never stored.
+
+Legacy `--password` still works for backward compatibility, but it is intentionally hidden from help and prints a warning because command-line secrets can leak.
 
 ### Step 3: Verify & Start Posting
 
@@ -63,7 +62,7 @@ bsky post "Hello world!"                              # Simple post
 bsky post "Look!" --image pic.jpg --alt "A sunset"    # With image
 bsky reply <url> "Great point!"                       # Reply
 bsky quote <url> "This is important"                  # Quote-post
-bsky delete <url>                                     # Delete your post
+bsky delete <url> --yes                               # Delete after verifying target
 ```
 
 ### Engagement
@@ -71,25 +70,25 @@ bsky delete <url>                                     # Delete your post
 ```bash
 bsky like <url>          # ❤️ Like a post
 bsky unlike <url>        # Remove like
-bsky repost <url>        # 🔁 Boost (aliases: boost, rt)
-bsky unrepost <url>      # Remove repost
+bsky repost <url> --yes   # 🔁 Boost after verifying target
+bsky unrepost <url> --yes # Remove repost after verifying target
 ```
 
 ### Social
 
 ```bash
-bsky follow @someone.bsky.social    # Follow
-bsky unfollow @someone              # Unfollow
-bsky profile @someone               # View profile
+bsky follow @someone.bsky.social --yes    # Follow after verifying target
+bsky unfollow @someone.bsky.social --yes  # Unfollow after verifying target
+bsky profile @someone.bsky.social         # View profile
 ```
 
 ### Moderation
 
 ```bash
-bsky block @troll.bsky.social       # 🚫 Block
-bsky unblock @someone               # Unblock
-bsky mute @noisy.bsky.social        # 🔇 Mute
-bsky unmute @someone                # Unmute
+bsky block @troll.bsky.social --yes       # 🚫 Block after verifying target
+bsky unblock @someone.bsky.social --yes   # Unblock after verifying target
+bsky mute @noisy.bsky.social --yes        # 🔇 Mute after verifying target
+bsky unmute @someone.bsky.social --yes    # Unmute after verifying target
 ```
 
 ### Threading
@@ -124,6 +123,8 @@ bsky notifications --json
 ## 🔒 Security
 
 - **Password never stored** — used once to get a session token, then discarded
+- **Safe login guidance** — documented login uses a hidden prompt; legacy `--password` is hidden and warns if used
+- **Optional confirmation gates** — set `BSKY_CONFIRM_MUTATIONS=1` to make delete, repost/unrepost, follow/unfollow, block/unblock, and mute/unmute prompt unless `--yes` is supplied
 - **Session tokens auto-refresh** — no need to re-login
 - **Config file permissions** — 600 (owner-only read/write)
 - **Location:** `~/.config/bsky/config.json`
@@ -133,7 +134,7 @@ bsky notifications --json
 ### For OpenClaw
 
 ```bash
-clawhub install bluesky
+openclaw skills install bluesky
 ```
 
 ### Manual
@@ -151,9 +152,10 @@ cd ~/clawd/skills/bluesky/scripts
 
 ## 🎯 Tips
 
-- **Handles:** Auto-appends `.bsky.social` if no domain specified
+- **Handles:** Leading `@` is optional; use the full handle, such as `alice.bsky.social`
 - **URLs:** Both `https://bsky.app/...` and `at://` URIs work
 - **Dry run:** Use `--dry-run` on post/reply/quote to preview
+- **Account changes:** Verify targets first; use `--yes` when opt-in confirmations are enabled
 - **Images:** Max 1MB, alt text required (accessibility)
 
 ## 📝 Changelog
@@ -162,7 +164,7 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## 📄 License
 
-MIT — do whatever you want with it.
+MIT-0 — do whatever you want with it.
 
 ---
 

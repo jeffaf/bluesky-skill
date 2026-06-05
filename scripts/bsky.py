@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 
 try:
     from atproto import Client, client_utils, models
@@ -21,7 +21,7 @@ CONFIG_PATH = Path.home() / ".config" / "bsky" / "config.json"
 
 
 def normalize_handle(handle):
-    """Strip leading @ and append .bsky.social if no domain specified."""
+    """Strip leading @ from handles."""
     handle = handle.lstrip("@")
     return handle
 
@@ -42,6 +42,32 @@ def save_config(config):
         os.close(fd)
 
 
+def require_confirmation(args, action, target):
+    """Optionally require confirmation for high-impact account changes."""
+    require_confirm = os.environ.get("BSKY_CONFIRM_MUTATIONS", "").lower()
+    if require_confirm not in {"1", "true", "yes", "on"}:
+        return
+
+    if getattr(args, "yes", False):
+        return
+
+    prompt = f"{action} {target}? Type 'yes' to continue: "
+    if not sys.stdin.isatty():
+        print(
+            f"Refusing to {action.lower()} {target} without confirmation.",
+            file=sys.stderr,
+        )
+        print(
+            "Re-run with --yes only after verifying the target/account.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if input(prompt) != "yes":
+        print("Aborted.")
+        sys.exit(1)
+
+
 def get_client():
     config = load_config()
 
@@ -59,7 +85,7 @@ def get_client():
         except Exception:
             # Session expired/invalid, need to re-login
             print(
-                "Session expired. Run: bsky login --handle your.handle --password your-app-password",
+                "Session expired. Run: bsky login --handle your.handle",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -76,7 +102,7 @@ def get_client():
         return client
 
     print(
-        "Not logged in. Run: bsky login --handle your.handle --password your-app-password",
+        "Not logged in. Run: bsky login --handle your.handle",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -135,10 +161,16 @@ def get_thread_root(post):
 
 def cmd_login(args):
     try:
-        password = args.password or os.environ.get("BSKY_PASSWORD")
-        if not password:
-            import getpass
+        import getpass
 
+        password = args.password
+        if password:
+            print(
+                "Warning: --password is deprecated because command-line secrets can leak. "
+                "Omit it to use the hidden prompt.",
+                file=sys.stderr,
+            )
+        else:
             password = getpass.getpass("App password: ")
         client = Client()
         client.login(args.handle, password)
@@ -728,6 +760,8 @@ def cmd_delete(args):
         # Construct the URI
         uri = f"at://{client.me.did}/app.bsky.feed.post/{post_id}"
 
+    require_confirmation(args, "Delete post", post_id)
+
     try:
         client.delete_post(uri)
         print(f"Deleted post: {post_id}")
@@ -912,6 +946,12 @@ def cmd_repost(args):
         print(f"Error resolving post: {e}", file=sys.stderr)
         sys.exit(1)
 
+    require_confirmation(
+        args,
+        "Repost",
+        f"https://bsky.app/profile/{post.author.handle}/post/{post.uri.split('/')[-1]}",
+    )
+
     try:
         client.repost(uri=post.uri, cid=post.cid)
         print(
@@ -930,6 +970,12 @@ def cmd_unrepost(args):
     except Exception as e:
         print(f"Error resolving post: {e}", file=sys.stderr)
         sys.exit(1)
+
+    require_confirmation(
+        args,
+        "Remove repost",
+        f"https://bsky.app/profile/{post.author.handle}/post/{post.uri.split('/')[-1]}",
+    )
 
     try:
         # Get the repost URI from the post's viewer state
@@ -965,6 +1011,7 @@ def cmd_follow(args):
 
     try:
         profile = client.get_profile(handle)
+        require_confirmation(args, "Follow", f"@{profile.handle}")
         client.follow(profile.did)
         print(f"👤 Following @{profile.handle}")
     except Exception as e:
@@ -979,6 +1026,7 @@ def cmd_unfollow(args):
 
     try:
         profile = client.get_profile(handle)
+        require_confirmation(args, "Unfollow", f"@{profile.handle}")
 
         # Check if following and get the follow record URI
         if (
@@ -1005,6 +1053,7 @@ def cmd_block(args):
 
     try:
         profile = client.get_profile(handle)
+        require_confirmation(args, "Block", f"@{profile.handle}")
 
         # Check if already blocked
         if hasattr(profile, "viewer") and profile.viewer and profile.viewer.blocking:
@@ -1032,6 +1081,7 @@ def cmd_unblock(args):
 
     try:
         profile = client.get_profile(handle)
+        require_confirmation(args, "Unblock", f"@{profile.handle}")
 
         # Check if blocking
         if (
@@ -1058,6 +1108,7 @@ def cmd_mute(args):
 
     try:
         profile = client.get_profile(handle)
+        require_confirmation(args, "Mute", f"@{profile.handle}")
         client.mute(profile.did)
         print(f"🔇 Muted @{profile.handle}")
     except Exception as e:
@@ -1072,6 +1123,7 @@ def cmd_unmute(args):
 
     try:
         profile = client.get_profile(handle)
+        require_confirmation(args, "Unmute", f"@{profile.handle}")
         client.unmute(profile.did)
         print(f"🔊 Unmuted @{profile.handle}")
     except Exception as e:
@@ -1114,7 +1166,7 @@ def main():
     login_p.add_argument(
         "--password",
         required=False,
-        help="App password (or set BSKY_PASSWORD env var, or omit to be prompted)",
+        help=argparse.SUPPRESS,
     )
 
     # logout
@@ -1211,6 +1263,7 @@ def main():
     # delete
     del_p = subparsers.add_parser("delete", aliases=["del", "rm"], help="Delete a post")
     del_p.add_argument("post_id", help="Post ID or URL")
+    del_p.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
 
     # profile
     profile_p = subparsers.add_parser("profile", help="Show profile")
@@ -1247,36 +1300,50 @@ def main():
     # repost
     repost_p = subparsers.add_parser("repost", aliases=["boost", "rt"], help="Repost")
     repost_p.add_argument("uri", help="Post URI or URL to repost")
+    repost_p.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
 
     # unrepost
     unrepost_p = subparsers.add_parser(
         "unrepost", aliases=["unboost", "unrt"], help="Remove repost"
     )
     unrepost_p.add_argument("uri", help="Post URI or URL to unrepost")
+    unrepost_p.add_argument(
+        "--yes", action="store_true", help="Skip confirmation prompt"
+    )
 
     # follow
     follow_p = subparsers.add_parser("follow", help="Follow a user")
     follow_p.add_argument("handle", help="Handle to follow")
+    follow_p.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
 
     # unfollow
     unfollow_p = subparsers.add_parser("unfollow", help="Unfollow a user")
     unfollow_p.add_argument("handle", help="Handle to unfollow")
+    unfollow_p.add_argument(
+        "--yes", action="store_true", help="Skip confirmation prompt"
+    )
 
     # block
     block_p = subparsers.add_parser("block", help="Block a user")
     block_p.add_argument("handle", help="Handle to block")
+    block_p.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
 
     # unblock
     unblock_p = subparsers.add_parser("unblock", help="Unblock a user")
     unblock_p.add_argument("handle", help="Handle to unblock")
+    unblock_p.add_argument(
+        "--yes", action="store_true", help="Skip confirmation prompt"
+    )
 
     # mute
     mute_p = subparsers.add_parser("mute", help="Mute a user")
     mute_p.add_argument("handle", help="Handle to mute")
+    mute_p.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
 
     # unmute
     unmute_p = subparsers.add_parser("unmute", help="Unmute a user")
     unmute_p.add_argument("handle", help="Handle to unmute")
+    unmute_p.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
 
     # stats
     stats_p = subparsers.add_parser("stats", help="Show account stats")
