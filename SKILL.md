@@ -1,6 +1,6 @@
 ---
 name: bluesky
-version: 1.6.2
+version: 1.6.3
 description: "Use the Bluesky CLI for timeline, search, notifications, posts, replies, threads, images, likes, reposts, follows, blocks, and mutes."
 homepage: https://bsky.app
 metadata:

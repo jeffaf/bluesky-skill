@@ -1,8 +1,12 @@
 # Changelog
 
+## 1.6.3 - 2026-06-05
+
+- Keep generated Skill Card metadata out of source because ClawHub strips publisher-supplied `skill-card.md` files and generates cards server-side.
+
 ## 1.6.2 - 2026-06-05
 
-- Restore ClawHub Skill Card metadata so published verification can include the card artifact.
+- Publish and scan the security/admin update through ClawHub 0.19.1.
 
 ## 1.6.1 - 2026-06-05
 
