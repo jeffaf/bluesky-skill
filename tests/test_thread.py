@@ -156,8 +156,8 @@ class TestCreateThreadHelp:
 class TestVersionUpdate:
     """Verify version was updated."""
 
-    def test_version_1_6_1(self):
+    def test_version_1_6_2(self):
         result = subprocess.run(
             [VENV_PYTHON, SCRIPT_PATH, "--version"], capture_output=True, text=True
         )
-        assert "1.6.1" in result.stdout
+        assert "1.6.2" in result.stdout

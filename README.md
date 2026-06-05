@@ -1,6 +1,6 @@
 # 🦋 Bluesky CLI
 
-[![Version](https://img.shields.io/badge/version-1.6.1-blue.svg)](https://github.com/jeffaf/bluesky-skill)
+[![Version](https://img.shields.io/badge/version-1.6.2-blue.svg)](https://github.com/jeffaf/bluesky-skill)
 [![License](https://img.shields.io/badge/license-MIT--0-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-yellow.svg)](https://python.org)
 

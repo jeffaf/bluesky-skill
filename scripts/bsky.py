@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-VERSION = "1.6.1"
+VERSION = "1.6.2"
 
 try:
     from atproto import Client, client_utils, models

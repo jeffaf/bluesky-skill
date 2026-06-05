@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.2 - 2026-06-05
+
+- Restore ClawHub Skill Card metadata so published verification can include the card artifact.
+
 ## 1.6.1 - 2026-06-05
 
 - Document safer Bluesky login flow that uses the hidden app-password prompt.
